@@ -2,4 +2,5 @@
 <resources>
     <string name="app_name">PadWriter</string>
     <string name="accessibility_service_description">允许 PadWriter 自动将文字输入到其他应用的输入框中。</string>
+    <string name="floating_ball_description">语音输入悬浮球</string>
 </resources>
