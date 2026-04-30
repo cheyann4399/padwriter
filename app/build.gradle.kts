@@ -1,7 +1,16 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
+}
+
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(FileInputStream(localPropertiesFile))
 }
 
 android {
@@ -14,6 +23,12 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
+
+        // API Keys from local.properties
+        buildConfigField("String", "XUNFEI_APP_ID", "\"${localProperties.getProperty("XUNFEI_APP_ID", "")}\"")
+        buildConfigField("String", "XUNFEI_API_KEY", "\"${localProperties.getProperty("XUNFEI_API_KEY", "")}\"")
+        buildConfigField("String", "XUNFEI_API_SECRET", "\"${localProperties.getProperty("XUNFEI_API_SECRET", "")}\"")
+        buildConfigField("String", "MINIMAX_API_KEY", "\"${localProperties.getProperty("MINIMAX_API_KEY", "")}\"")
     }
 
     buildTypes {
@@ -34,6 +49,7 @@ android {
     }
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
 }
 

@@ -15,6 +15,7 @@ import android.view.View
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
+import com.aivoice.input.BuildConfig
 import com.aivoice.input.MainActivity
 import com.aivoice.input.R
 import com.aivoice.input.audio.AudioRecorder
@@ -138,11 +139,10 @@ class FloatingBallService : LifecycleService() {
     }
 
     private fun initPipeline() {
-        // Note: In production, these should come from BuildConfig or local.properties
-        val appId = "" // XUNFEI_APP_ID
-        val apiKey = "" // XUNFEI_API_KEY
-        val apiSecret = "" // XUNFEI_API_SECRET
-        val miniMaxKey = "" // MINIMAX_API_KEY
+        val appId = BuildConfig.XUNFEI_APP_ID
+        val apiKey = BuildConfig.XUNFEI_API_KEY
+        val apiSecret = BuildConfig.XUNFEI_API_SECRET
+        val miniMaxKey = BuildConfig.MINIMAX_API_KEY
 
         val rtasrClient = XunfeiRTASRClient(appId, apiKey, apiSecret)
         val miniMaxClient = MiniMaxClient(miniMaxKey)
