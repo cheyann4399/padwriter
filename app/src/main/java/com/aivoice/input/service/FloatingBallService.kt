@@ -17,13 +17,24 @@ import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
 import com.aivoice.input.MainActivity
 import com.aivoice.input.R
+import com.aivoice.input.audio.AudioRecorder
+import com.aivoice.input.db.AppDatabase
+import com.aivoice.input.model.HistoryItem
+import com.aivoice.input.model.PolishStyle
+import com.aivoice.input.network.ai.MiniMaxClient
+import com.aivoice.input.network.rtasr.XunfeiRTASRClient
+import com.aivoice.input.pipeline.*
 import com.aivoice.input.ui.floating.FloatingBallState
 import com.aivoice.input.ui.floating.FloatingBallView
 import com.aivoice.input.util.VibrationHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 
 class FloatingBallService : LifecycleService() {
 
@@ -32,6 +43,7 @@ class FloatingBallService : LifecycleService() {
     private lateinit var windowManager: WindowManager
     private lateinit var floatingBallView: FloatingBallView
     private lateinit var params: WindowManager.LayoutParams
+    private lateinit var pipeline: StreamingPipeline
 
     private var initialX = 0
     private var initialY = 0
@@ -44,6 +56,9 @@ class FloatingBallService : LifecycleService() {
     private var touchDownX = 0f
     private var touchDownY = 0f
     private var isLongPress = false
+    private var longPressCheckJob: Job? = null
+    private var recordingJob: Job? = null
+    private var currentPolishedText = StringBuilder()
 
     companion object {
         const val CHANNEL_ID = "floating_ball_channel"
@@ -74,6 +89,7 @@ class FloatingBallService : LifecycleService() {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification())
+        initPipeline()
         createFloatingBall()
     }
 
@@ -88,6 +104,8 @@ class FloatingBallService : LifecycleService() {
 
     override fun onDestroy() {
         super.onDestroy()
+        longPressCheckJob?.cancel()
+        recordingJob?.cancel()
         removeFloatingBall()
         serviceScope.cancel()
     }
@@ -117,6 +135,30 @@ class FloatingBallService : LifecycleService() {
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .build()
+    }
+
+    private fun initPipeline() {
+        // Note: In production, these should come from BuildConfig or local.properties
+        val appId = "" // XUNFEI_APP_ID
+        val apiKey = "" // XUNFEI_API_KEY
+        val apiSecret = "" // XUNFEI_API_SECRET
+        val miniMaxKey = "" // MINIMAX_API_KEY
+
+        val rtasrClient = XunfeiRTASRClient(appId, apiKey, apiSecret)
+        val miniMaxClient = MiniMaxClient(miniMaxKey)
+        val audioRecorder = AudioRecorder()
+        val promptEngine = PromptEngine()
+        val postProcessor = PostProcessor()
+        val dictionaryReplacer = DictionaryReplacer()
+
+        pipeline = StreamingPipeline(
+            rtasrClient = rtasrClient,
+            miniMaxClient = miniMaxClient,
+            audioRecorder = audioRecorder,
+            promptEngine = promptEngine,
+            postProcessor = postProcessor,
+            dictionaryReplacer = dictionaryReplacer
+        )
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -162,12 +204,21 @@ class FloatingBallService : LifecycleService() {
                 initialTouchY = event.rawY
                 isDragging = false
                 isLongPress = false
+
+                // Start long press detection
+                longPressCheckJob = serviceScope.launch {
+                    delay(LONG_PRESS_THRESHOLD)
+                    if (!isDragging) {
+                        onLongPressStart()
+                    }
+                }
             }
             MotionEvent.ACTION_MOVE -> {
                 val dx = event.rawX - initialTouchX
                 val dy = event.rawY - initialTouchY
                 if (Math.abs(dx) > CLICK_THRESHOLD || Math.abs(dy) > CLICK_THRESHOLD) {
                     isDragging = true
+                    longPressCheckJob?.cancel()
                 }
                 if (isDragging) {
                     params.x = initialX + dx.toInt()
@@ -176,11 +227,11 @@ class FloatingBallService : LifecycleService() {
                 }
             }
             MotionEvent.ACTION_UP -> {
-                val touchDuration = System.currentTimeMillis() - touchDownTime
+                longPressCheckJob?.cancel()
                 val dx = Math.abs(event.rawX - touchDownX)
                 val dy = Math.abs(event.rawY - touchDownY)
                 when {
-                    touchDuration >= LONG_PRESS_THRESHOLD && !isDragging -> onLongPressEnd()
+                    isLongPress -> onLongPressEnd()
                     !isDragging && dx < CLICK_THRESHOLD && dy < CLICK_THRESHOLD -> {
                         val now = System.currentTimeMillis()
                         if (now - lastClickTime < DOUBLE_CLICK_THRESHOLD) {
@@ -218,13 +269,75 @@ class FloatingBallService : LifecycleService() {
         isLongPress = true
         floatingBallView.state = FloatingBallState.RECORDING
         VibrationHelper.vibrate(this, 50)
+        currentPolishedText.clear()
+
+        val style = getDefaultPolishStyle()
+        recordingJob = serviceScope.launch {
+            pipeline.start(style).collectLatest { state ->
+                when (state) {
+                    is PipelineState.ASRResult -> {
+                        // Could show intermediate text if needed
+                    }
+                    is PipelineState.AIChunk -> {
+                        // Stream to text injector
+                        TextInjectService.getInstance()?.injectTextStreaming(state.text)
+                        currentPolishedText.append(state.text)
+                    }
+                    is PipelineState.Error -> {
+                        floatingBallView.state = FloatingBallState.NORMAL
+                    }
+                    is PipelineState.Completed -> {
+                        floatingBallView.state = FloatingBallState.NORMAL
+                    }
+                }
+            }
+        }
     }
 
     private fun onLongPressEnd() {
         if (isLongPress) {
             floatingBallView.state = FloatingBallState.PROCESSING
             VibrationHelper.vibrate(this, 50)
+
+            recordingJob?.cancel()
+            recordingJob = null
+
+            serviceScope.launch {
+                val style = getDefaultPolishStyle()
+                pipeline.stop(style).collectLatest { chunk ->
+                    TextInjectService.getInstance()?.injectTextStreaming(chunk)
+                    currentPolishedText.append(chunk)
+                }
+
+                // Save to history
+                if (currentPolishedText.isNotEmpty()) {
+                    saveToHistory(pipeline.getCurrentText(), currentPolishedText.toString())
+                }
+
+                floatingBallView.state = FloatingBallState.NORMAL
+                TextInjectService.getInstance()?.resetInjection()
+            }
         }
+    }
+
+    private fun getDefaultPolishStyle(): PolishStyle {
+        val prefs = getSharedPreferences("settings", MODE_PRIVATE)
+        val styleName = prefs.getString("polish_style", PolishStyle.NATIVE.name) ?: PolishStyle.NATIVE.name
+        return try {
+            PolishStyle.valueOf(styleName)
+        } catch (e: IllegalArgumentException) {
+            PolishStyle.NATIVE
+        }
+    }
+
+    private suspend fun saveToHistory(originalText: String, polishedText: String) {
+        val db = AppDatabase.getInstance(this@FloatingBallService)
+        val item = HistoryItem(
+            originalText = originalText,
+            polishedText = polishedText,
+            style = getDefaultPolishStyle()
+        )
+        db.historyDao().insert(item)
     }
 
     private fun showFloatingBall() {
