@@ -3,4 +3,21 @@
     <string name="app_name">PadWriter</string>
     <string name="accessibility_service_description">允许 PadWriter 自动将文字输入到其他应用的输入框中。</string>
     <string name="floating_ball_description">语音输入悬浮球</string>
+    <string name="settings_title">设置</string>
+    <string name="polish_style_label">润色风格</string>
+    <string name="style_native">原汁原味</string>
+    <string name="style_formal">正式得体</string>
+    <string name="style_concise">简洁精炼</string>
+    <string name="view_history">查看历史记录</string>
+    <string name="manage_dictionary">管理词库</string>
+    <string name="hide_floating_ball">隐藏悬浮球</string>
+    <string name="permission_guide">请授予以下权限以使用应用</string>
+    <string name="overlay_permission">悬浮窗权限</string>
+    <string name="audio_permission">麦克风权限</string>
+    <string name="accessibility_permission">无障碍服务权限</string>
+    <string name="grant_permission">授予权限</string>
+    <string name="open_settings">打开设置</string>
+    <string name="permission_granted">已授权</string>
+    <string name="start_floating_ball">启动悬浮球</string>
+    <string name="floating_ball_started">悬浮球已启动</string>
 </resources>
