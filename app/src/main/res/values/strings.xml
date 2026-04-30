@@ -20,4 +20,19 @@
     <string name="permission_granted">已授权</string>
     <string name="start_floating_ball">启动悬浮球</string>
     <string name="floating_ball_started">悬浮球已启动</string>
+    <string name="copy">复制</string>
+    <string name="delete">删除</string>
+    <string name="clear_all_history">清空历史</string>
+    <string name="history_cleared">历史已清空</string>
+    <string name="copied_to_clipboard">已复制到剪贴板</string>
+    <string name="add_entry">添加词条</string>
+    <string name="delete_entry">删除词条</string>
+    <string name="delete_entry_confirm">确定删除 "%s" 吗？</string>
+    <string name="entry_deleted">词条已删除</string>
+    <string name="entry_added">词条已添加</string>
+    <string name="empty_entry_error">原文和替换文本不能为空</string>
+    <string name="original_text_hint">原文</string>
+    <string name="replacement_text_hint">替换文本</string>
+    <string name="add">添加</string>
+    <string name="cancel">取消</string>
 </resources>
