@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">PadWriter</string>
-    <string name="accessibility_service_description">PadWriter needs accessibility service to inject text into other apps.</string>
+    <string name="accessibility_service_description">允许 PadWriter 自动将文字输入到其他应用的输入框中。</string>
 </resources>
