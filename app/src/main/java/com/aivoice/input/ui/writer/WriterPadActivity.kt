@@ -56,15 +56,18 @@ class WriterPadActivity : AppCompatActivity() {
 
     // FloatingBallService binding
     private var floatingBallService: FloatingBallService? = null
+    private var isBound = false
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, service: IBinder) {
             val binder = service as FloatingBallService.LocalBinder
             floatingBallService = binder.getService()
+            isBound = true
             viewModel.setFloatingBallService(floatingBallService)
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
             floatingBallService = null
+            isBound = false
             viewModel.setFloatingBallService(null)
         }
     }
@@ -90,7 +93,10 @@ class WriterPadActivity : AppCompatActivity() {
         super.onStop()
         // Clear context and unbind
         floatingBallService?.clearBeatContext()
-        unbindService(serviceConnection)
+        if (isBound) {
+            unbindService(serviceConnection)
+            isBound = false
+        }
     }
 
     private fun initViews() {

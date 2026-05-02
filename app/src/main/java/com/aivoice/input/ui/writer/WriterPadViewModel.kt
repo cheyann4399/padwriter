@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 import java.util.UUID
+import java.lang.ref.WeakReference
 
 /**
  * ViewModel for WriterPad screen.
@@ -42,11 +43,11 @@ class WriterPadViewModel(
     private val _uiState = MutableStateFlow(WriterPadState())
     val uiState: StateFlow<WriterPadState> = _uiState.asStateFlow()
 
-    // Reference to FloatingBallService for context sync
-    private var floatingBallService: FloatingBallService? = null
+    // Reference to FloatingBallService for context sync (WeakReference to avoid memory leak)
+    private var floatingBallServiceRef: WeakReference<FloatingBallService>? = null
 
     fun setFloatingBallService(service: FloatingBallService?) {
-        this.floatingBallService = service
+        this.floatingBallServiceRef = if (service != null) WeakReference(service) else null
     }
 
     fun processIntent(intent: WriterPadIntent) {
@@ -231,7 +232,7 @@ class WriterPadViewModel(
             },
             outlineSummary = context.outline?.content?.let { truncate(it, 500) }
         )
-        floatingBallService?.updateBeatContext(beatContext)
+        floatingBallServiceRef?.get()?.updateBeatContext(beatContext)
     }
 
     private fun truncate(text: String, maxLength: Int): String {
