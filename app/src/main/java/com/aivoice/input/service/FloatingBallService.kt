@@ -109,6 +109,18 @@ class FloatingBallService : LifecycleService() {
         }
     }
 
+    // Binder for service binding
+    inner class LocalBinder : android.os.Binder() {
+        fun getService(): FloatingBallService = this@FloatingBallService
+    }
+
+    private val binder = LocalBinder()
+
+    override fun onBind(intent: Intent?): android.os.IBinder {
+        super.onBind(intent)
+        return binder
+    }
+
     override fun onCreate() {
         super.onCreate()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager

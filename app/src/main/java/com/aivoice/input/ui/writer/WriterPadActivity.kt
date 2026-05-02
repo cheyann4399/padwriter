@@ -20,6 +20,12 @@ import com.aivoice.input.ui.writer.mvi.WriterPadState
 import com.aivoice.input.ui.writer.adapters.BeatListAdapter
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
+import android.os.IBinder
+import com.aivoice.input.service.FloatingBallService
 
 /**
  * Main activity for WriterPad writing module.
@@ -48,6 +54,21 @@ class WriterPadActivity : AppCompatActivity() {
     // Adapter
     private lateinit var beatAdapter: BeatListAdapter
 
+    // FloatingBallService binding
+    private var floatingBallService: FloatingBallService? = null
+    private val serviceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName, service: IBinder) {
+            val binder = service as FloatingBallService.LocalBinder
+            floatingBallService = binder.getService()
+            viewModel.setFloatingBallService(floatingBallService)
+        }
+
+        override fun onServiceDisconnected(name: ComponentName) {
+            floatingBallService = null
+            viewModel.setFloatingBallService(null)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_writer_pad)
@@ -56,6 +77,20 @@ class WriterPadActivity : AppCompatActivity() {
         setupAdapter()
         observeState()
         setupListeners()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // Bind to FloatingBallService
+        val intent = Intent(this, FloatingBallService::class.java)
+        bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Clear context and unbind
+        floatingBallService?.clearBeatContext()
+        unbindService(serviceConnection)
     }
 
     private fun initViews() {
