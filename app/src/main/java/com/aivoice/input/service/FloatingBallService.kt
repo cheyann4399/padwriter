@@ -64,6 +64,7 @@ class FloatingBallService : LifecycleService() {
     private var currentPolishedText = StringBuilder()
 
     // Beat context for WriterPad integration
+    @Volatile
     private var beatContext: BeatContext? = null
 
     /**
