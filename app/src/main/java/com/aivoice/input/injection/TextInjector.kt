@@ -59,6 +59,35 @@ class TextInjector(private val context: Context) {
         }
     }
 
+    // 实时更新文字（替换当前内容）
+    fun updateText(text: String, rootNode: AccessibilityNodeInfo?) {
+        currentText.clear()
+        currentText.append(text)
+
+        val inputNode = findInputNode(rootNode)
+        if (inputNode == null) {
+            Log.w(TAG, "No input node found")
+            return
+        }
+
+        trySetTextView(inputNode, text)
+    }
+
+    // 清空并设置新文字（用于润色后替换）
+    fun replaceText(text: String, rootNode: AccessibilityNodeInfo?) {
+        currentText.clear()
+        currentText.append(text)
+
+        val inputNode = findInputNode(rootNode)
+        if (inputNode == null) {
+            Log.w(TAG, "No input node found")
+            return
+        }
+
+        // 先清空，再设置新文字
+        trySetTextView(inputNode, text)
+    }
+
     fun injectFull(text: String, rootNode: AccessibilityNodeInfo?) {
         currentText.clear()
         currentText.append(text)
@@ -124,11 +153,11 @@ class TextInjector(private val context: Context) {
             val clip = ClipData.newPlainText("text", text)
             clipboard.setPrimaryClip(clip)
             val success = node.performAction(AccessibilityNodeInfo.ACTION_PASTE)
-            handler.postDelayed(500) {
+            handler.postDelayed({
                 if (originalClip != null) {
                     clipboard.setPrimaryClip(originalClip)
                 }
-            }
+            }, 500)
             success
         } catch (e: Exception) {
             Log.e(TAG, "CLIPBOARD_PASTE failed: ${e.message}")

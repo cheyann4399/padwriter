@@ -18,7 +18,7 @@
 | 数据模型 | ✅ | PolishStyle, HistoryItem, DictionaryEntry, AppSettings |
 | Room 数据库 | ✅ | AppDatabase, HistoryDao, DictionaryDao |
 | 音频录制 | ✅ | AudioRecorder (16kHz, 16bit, mono, Flow-based) |
-| 讯飞实时 ASR | ✅ | XunfeiRTASRClient (WebSocket 流式识别) |
+| 腾讯云实时 ASR | ✅ | TencentASRClient (WebSocket 流式识别，实时显示) |
 | MiniMax AI | ✅ | MiniMaxClient (SSE 流式响应) |
 | 语音缓冲区 | ✅ | SpeechBuffer (chunk 管理，处理修正) |
 | 后处理器 | ✅ | PostProcessor (语气词去除) |
@@ -28,17 +28,17 @@
 | 悬浮球视图 | ✅ | FloatingBallView (状态颜色切换) |
 | 悬浮球服务 | ✅ | FloatingBallService (手势处理 + 管道集成) |
 | 文字注入 | ✅ | TextInjectService + TextInjector (三级回退策略) |
+| 实时文字显示 | ✅ | 按住时 ASR 文字实时显示，松开后 AI 润色替换 |
 | 主页面 | ✅ | MainActivity (权限引导) |
 | 设置页面 | ✅ | SettingsActivity (润色风格选择) |
 | 历史记录 | ✅ | HistoryActivity (查看/复制/删除) |
 | 词库管理 | ✅ | DictionaryActivity (添加/删除/开关) |
+| 真机测试 | ✅ | 完整流程验证通过 |
 
 ### 🚧 待完成
 
 | 模块 | 状态 | 说明 |
 |------|------|------|
-| API Key 配置 | 🚧 | 需在 local.properties 配置讯飞和 MiniMax 密钥 |
-| 功能测试 | 🚧 | 真机测试完整流程 |
 | UI 优化 | 🚧 | 界面美化和交互优化 |
 
 ## 项目结构
@@ -69,9 +69,8 @@ app/src/main/java/com/aivoice/input/
 │   ├── PromptEngine.kt           # 提示词引擎
 │   └── DictionaryReplacer.kt     # 词库替换
 ├── network/                      # 网络请求
-│   ├── rtasr/                    # 讯飞实时 ASR
-│   │   ├── XunfeiRTASRClient.kt
-│   │   ├── RTASRAuthBuilder.kt
+│   ├── rtasr/                    # 腾讯云实时 ASR
+│   │   ├── TencentASRClient.kt
 │   │   └── RTASRResult.kt
 │   └── ai/                       # AI 润色
 │       ├── MiniMaxClient.kt
@@ -139,10 +138,10 @@ app/src/main/java/com/aivoice/input/
 在 `local.properties` 中配置 API 密钥：
 
 ```properties
-# 讯飞实时语音转写
-XUNFEI_APP_ID=your_app_id
-XUNFEI_API_KEY=your_api_key
-XUNFEI_API_SECRET=your_api_secret
+# 腾讯云实时语音识别
+TENCENT_SECRET_ID=your_secret_id
+TENCENT_SECRET_KEY=your_secret_key
+TENCENT_APP_ID=your_app_id
 
 # MiniMax AI
 MINIMAX_API_KEY=your_api_key

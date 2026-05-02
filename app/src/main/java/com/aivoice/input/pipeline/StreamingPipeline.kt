@@ -5,13 +5,14 @@ import com.aivoice.input.audio.AudioRecorder
 import com.aivoice.input.model.PolishStyle
 import com.aivoice.input.network.ai.MiniMaxClient
 import com.aivoice.input.network.rtasr.RTASRResult
-import com.aivoice.input.network.rtasr.XunfeiRTASRClient
+import com.aivoice.input.network.rtasr.TencentASRClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
 
 class StreamingPipeline(
-    private val rtasrClient: XunfeiRTASRClient,
+    private val asrClient: TencentASRClient,
     private val miniMaxClient: MiniMaxClient,
     private val audioRecorder: AudioRecorder,
     private val promptEngine: PromptEngine,
@@ -32,23 +33,37 @@ class StreamingPipeline(
         speechBuffer.clear()
         lastTextLength = 0
 
-        val asrFlow = rtasrClient.connect()
+        try {
+            val asrFlow = asrClient.connect()
 
-        asrFlow
-            .onEach { result ->
-                onASRResult(result, style)
-            }
-            .launchIn(this)
+            asrFlow
+                .onEach { result ->
+                    speechBuffer.append(result)
+                    // 实时发送 ASR 结果
+                    val currentText = speechBuffer.getCurrentText()
+                    if (currentText.isNotEmpty()) {
+                        send(PipelineState.ASRResult(currentText, result.isFinal))
+                    }
+                }
+                .catch { e ->
+                    Log.e(TAG, "ASR error: ${e.message}")
+                    send(PipelineState.Error(e.message ?: "ASR error"))
+                }
+                .launchIn(this)
 
-        audioRecorder.startRecording()
-            .onEach { audioData ->
-                rtasrClient.sendAudio(audioData)
-            }
-            .catch { e ->
-                Log.e(TAG, "Audio recording error: ${e.message}")
-                send(PipelineState.Error(e.message ?: "Audio error"))
-            }
-            .launchIn(this)
+            audioRecorder.startRecording()
+                .onEach { audioData ->
+                    asrClient.sendAudio(audioData)
+                }
+                .catch { e ->
+                    Log.e(TAG, "Audio recording error: ${e.message}")
+                    send(PipelineState.Error(e.message ?: "Audio error"))
+                }
+                .launchIn(this)
+        } catch (e: Exception) {
+            Log.e(TAG, "Pipeline start error: ${e.message}")
+            send(PipelineState.Error(e.message ?: "Pipeline start error"))
+        }
 
         awaitClose {
             stop()
@@ -66,7 +81,7 @@ class StreamingPipeline(
 
     fun stop(style: PolishStyle): Flow<String> = flow {
         audioRecorder.stopRecording()
-        rtasrClient.end()
+        asrClient.end()
 
         val rawText = speechBuffer.merge()
         if (rawText.isEmpty()) {
@@ -84,7 +99,7 @@ class StreamingPipeline(
 
     fun stop() {
         audioRecorder.stopRecording()
-        rtasrClient.disconnect()
+        asrClient.disconnect()
         prewarmJob?.cancel()
     }
 

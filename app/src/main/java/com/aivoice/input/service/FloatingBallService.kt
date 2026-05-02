@@ -23,10 +23,11 @@ import com.aivoice.input.db.AppDatabase
 import com.aivoice.input.model.HistoryItem
 import com.aivoice.input.model.PolishStyle
 import com.aivoice.input.network.ai.MiniMaxClient
-import com.aivoice.input.network.rtasr.XunfeiRTASRClient
+import com.aivoice.input.network.rtasr.TencentASRClient
 import com.aivoice.input.pipeline.*
 import com.aivoice.input.ui.floating.FloatingBallState
 import com.aivoice.input.ui.floating.FloatingBallView
+import android.util.Log
 import com.aivoice.input.util.VibrationHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -62,6 +63,7 @@ class FloatingBallService : LifecycleService() {
     private var currentPolishedText = StringBuilder()
 
     companion object {
+        private const val TAG = "FloatingBallService"
         const val CHANNEL_ID = "floating_ball_channel"
         const val NOTIFICATION_ID = 1
         const val ACTION_SHOW = "com.aivoice.input.action.SHOW"
@@ -139,12 +141,12 @@ class FloatingBallService : LifecycleService() {
     }
 
     private fun initPipeline() {
-        val appId = BuildConfig.XUNFEI_APP_ID
-        val apiKey = BuildConfig.XUNFEI_API_KEY
-        val apiSecret = BuildConfig.XUNFEI_API_SECRET
+        val secretId = BuildConfig.TENCENT_SECRET_ID
+        val secretKey = BuildConfig.TENCENT_SECRET_KEY
+        val appId = BuildConfig.TENCENT_APP_ID
         val miniMaxKey = BuildConfig.MINIMAX_API_KEY
 
-        val rtasrClient = XunfeiRTASRClient(appId, apiKey, apiSecret)
+        val asrClient = TencentASRClient(secretId, secretKey, appId)
         val miniMaxClient = MiniMaxClient(miniMaxKey)
         val audioRecorder = AudioRecorder()
         val promptEngine = PromptEngine()
@@ -152,7 +154,7 @@ class FloatingBallService : LifecycleService() {
         val dictionaryReplacer = DictionaryReplacer()
 
         pipeline = StreamingPipeline(
-            rtasrClient = rtasrClient,
+            asrClient = asrClient,
             miniMaxClient = miniMaxClient,
             audioRecorder = audioRecorder,
             promptEngine = promptEngine,
@@ -266,35 +268,53 @@ class FloatingBallService : LifecycleService() {
     }
 
     private fun onLongPressStart() {
+        Log.d(TAG, "onLongPressStart called")
         isLongPress = true
         floatingBallView.state = FloatingBallState.RECORDING
         VibrationHelper.vibrate(this, 50)
         currentPolishedText.clear()
 
+        // 重置文字注入器
+        TextInjectService.getInstance()?.resetInjection()
+
         val style = getDefaultPolishStyle()
+        Log.d(TAG, "Starting pipeline with style: $style")
         recordingJob = serviceScope.launch {
-            pipeline.start(style).collectLatest { state ->
-                when (state) {
-                    is PipelineState.ASRResult -> {
-                        // Could show intermediate text if needed
-                    }
-                    is PipelineState.AIChunk -> {
-                        // Stream to text injector
-                        TextInjectService.getInstance()?.injectTextStreaming(state.text)
-                        currentPolishedText.append(state.text)
-                    }
-                    is PipelineState.Error -> {
-                        floatingBallView.state = FloatingBallState.NORMAL
-                    }
-                    is PipelineState.Completed -> {
-                        floatingBallView.state = FloatingBallState.NORMAL
+            try {
+                pipeline.start(style).collectLatest { state ->
+                    Log.d(TAG, "Pipeline state: $state")
+                    when (state) {
+                        is PipelineState.ASRResult -> {
+                            // 实时显示 ASR 识别的文字（替换模式）
+                            Log.d(TAG, "ASR result: ${state.text}")
+                            TextInjectService.getInstance()?.updateText(state.text)
+                        }
+                        is PipelineState.AIChunk -> {
+                            // AI 润色结果（流式追加）
+                            Log.d(TAG, "AI chunk: ${state.text}")
+                            TextInjectService.getInstance()?.injectTextStreaming(state.text)
+                            currentPolishedText.append(state.text)
+                        }
+                        is PipelineState.Error -> {
+                            Log.e(TAG, "Pipeline error: ${state.message}")
+                            floatingBallView.state = FloatingBallState.NORMAL
+                        }
+                        is PipelineState.Completed -> {
+                            Log.d(TAG, "Pipeline completed")
+                            floatingBallView.state = FloatingBallState.NORMAL
+                        }
                     }
                 }
+            } catch (e: Exception) {
+                android.util.Log.e("FloatingBallService", "Recording error: ${e.message}", e)
+                floatingBallView.state = FloatingBallState.NORMAL
+                isLongPress = false
             }
         }
     }
 
     private fun onLongPressEnd() {
+        Log.d(TAG, "onLongPressEnd called, isLongPress=$isLongPress")
         if (isLongPress) {
             floatingBallView.state = FloatingBallState.PROCESSING
             VibrationHelper.vibrate(this, 50)
@@ -302,20 +322,43 @@ class FloatingBallService : LifecycleService() {
             recordingJob?.cancel()
             recordingJob = null
 
+            // 获取当前 ASR 文本
+            val asrText = pipeline.getCurrentText()
+            Log.d(TAG, "ASR text: $asrText")
+
             serviceScope.launch {
-                val style = getDefaultPolishStyle()
-                pipeline.stop(style).collectLatest { chunk ->
-                    TextInjectService.getInstance()?.injectTextStreaming(chunk)
-                    currentPolishedText.append(chunk)
-                }
+                try {
+                    val style = getDefaultPolishStyle()
+                    Log.d(TAG, "Stopping pipeline with style: $style")
 
-                // Save to history
-                if (currentPolishedText.isNotEmpty()) {
-                    saveToHistory(pipeline.getCurrentText(), currentPolishedText.toString())
-                }
+                    // 重置注入器，准备接收 AI 润色结果
+                    TextInjectService.getInstance()?.resetInjection()
 
-                floatingBallView.state = FloatingBallState.NORMAL
-                TextInjectService.getInstance()?.resetInjection()
+                    var firstChunk = true
+                    pipeline.stop(style).collectLatest { chunk ->
+                        Log.d(TAG, "Received chunk: $chunk")
+                        if (firstChunk) {
+                            // 第一个 chunk 替换掉 ASR 文字
+                            TextInjectService.getInstance()?.replaceText(chunk)
+                            firstChunk = false
+                        } else {
+                            // 后续 chunk 追加
+                            TextInjectService.getInstance()?.injectTextStreaming(chunk)
+                        }
+                        currentPolishedText.append(chunk)
+                    }
+
+                    // Save to history
+                    if (currentPolishedText.isNotEmpty()) {
+                        Log.d(TAG, "Saving to history: ${currentPolishedText}")
+                        saveToHistory(asrText, currentPolishedText.toString())
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Processing error: ${e.message}", e)
+                } finally {
+                    floatingBallView.state = FloatingBallState.NORMAL
+                    TextInjectService.getInstance()?.resetInjection()
+                }
             }
         }
     }

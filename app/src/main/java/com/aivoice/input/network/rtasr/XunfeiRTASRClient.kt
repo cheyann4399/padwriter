@@ -1,5 +1,6 @@
 package com.aivoice.input.network.rtasr
 
+import android.util.Base64
 import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.JsonObject
@@ -10,6 +11,8 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flowOn
 import okhttp3.*
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit as JavaTimeUnit
 
 class XunfeiRTASRClient(
     private val appId: String,
@@ -22,16 +25,18 @@ class XunfeiRTASRClient(
         .build()
 
     private var webSocket: WebSocket? = null
-    private var sessionId: String? = null
     private val gson = Gson()
+    private var isConnected = false
+    private val connectLatch = CountDownLatch(1)
 
     companion object {
         private const val TAG = "XunfeiRTASR"
-        private const val BASE_URL = "wss://office-api-ast-dx.iflyaisol.com/ast/communicate/v1"
+        private const val BASE_URL = "wss://iat-api.xfyun.cn/v2/iat"
     }
 
     fun connect(): Flow<RTASRResult> = callbackFlow {
         val url = RTASRAuthBuilder.buildUrl(BASE_URL, appId, apiKey, apiSecret)
+        Log.d(TAG, "Connecting to: $url")
 
         val request = Request.Builder()
             .url(url)
@@ -40,29 +45,27 @@ class XunfeiRTASRClient(
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 Log.d(TAG, "WebSocket connected")
+                isConnected = true
+                connectLatch.countDown()
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
                 try {
+                    Log.d(TAG, "Received message: $text")
                     val json = gson.fromJson(text, JsonObject::class.java)
-                    val action = json.get("action")?.asString
+                    val code = json.get("code")?.asInt
 
-                    when (action) {
-                        "started" -> {
-                            sessionId = json.get("data")?.asJsonObject?.get("sessionId")?.asString
-                            Log.d(TAG, "Session started: $sessionId")
-                        }
-                        "result" -> {
-                            val result = parseResult(json)
-                            if (result != null) {
-                                trySend(result)
-                            }
-                        }
-                        "error" -> {
-                            val errorMsg = json.get("data")?.asJsonObject?.get("message")?.asString
-                            Log.e(TAG, "Error: $errorMsg")
-                            close(IllegalStateException(errorMsg))
-                        }
+                    if (code != null && code != 0) {
+                        val message = json.get("message")?.asString ?: "Unknown error"
+                        Log.e(TAG, "Error: code=$code, message=$message")
+                        close(IllegalStateException("Error $code: $message"))
+                        return
+                    }
+
+                    // 解析识别结果
+                    val result = parseResult(json)
+                    if (result != null) {
+                        trySend(result)
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Parse error: ${e.message}")
@@ -71,11 +74,14 @@ class XunfeiRTASRClient(
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 Log.e(TAG, "WebSocket failure: ${t.message}")
+                isConnected = false
+                connectLatch.countDown()
                 close(t)
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                 Log.d(TAG, "WebSocket closed: $reason")
+                isConnected = false
                 close()
             }
         })
@@ -85,32 +91,78 @@ class XunfeiRTASRClient(
         }
     }.flowOn(Dispatchers.IO)
 
+    private fun waitForConnection() {
+        if (!isConnected) {
+            connectLatch.await(5, JavaTimeUnit.SECONDS)
+        }
+    }
+
     fun sendAudio(audioData: ByteArray) {
-        webSocket?.send(audioData.toByteString())
+        waitForConnection()
+        if (!isConnected) {
+            Log.w(TAG, "WebSocket not connected, skipping audio frame")
+            return
+        }
+        // 发送音频数据，使用 IAT 协议格式
+        val base64Audio = Base64.encodeToString(audioData, Base64.NO_WRAP)
+        val message = buildAudioMessage(base64Audio, status = 1)
+        Log.d(TAG, "Sending audio frame, size=${audioData.size}")
+        val sent = webSocket?.send(message) ?: false
+        Log.d(TAG, "Audio frame sent: $sent")
+    }
+
+    fun sendFirstFrame(audioData: ByteArray) {
+        waitForConnection()
+        if (!isConnected) {
+            Log.w(TAG, "WebSocket not connected, skipping first frame")
+            return
+        }
+        val base64Audio = Base64.encodeToString(audioData, Base64.NO_WRAP)
+        val message = buildAudioMessage(base64Audio, status = 0)
+        Log.d(TAG, "Sending first frame, size=${audioData.size}")
+        val sent = webSocket?.send(message) ?: false
+        Log.d(TAG, "First frame sent: $sent")
     }
 
     fun end() {
-        sessionId?.let { sid ->
-            val endMessage = """{"end": true, "sessionId": "$sid"}"""
-            webSocket?.send(endMessage)
+        // 发送结束帧
+        val message = buildAudioMessage("", status = 2)
+        Log.d(TAG, "Sending end frame")
+        webSocket?.send(message)
+    }
+
+    private fun buildAudioMessage(base64Audio: String, status: Int): String {
+        val json = JsonObject().apply {
+            add("common", JsonObject().apply {
+                addProperty("app_id", appId)
+            })
+            add("business", JsonObject().apply {
+                addProperty("language", "zh_cn")
+                addProperty("domain", "iat")
+                addProperty("accent", "mandarin")
+                addProperty("vad_eos", 2000)
+            })
+            add("data", JsonObject().apply {
+                addProperty("status", status)
+                addProperty("format", "audio/L16;rate=16000")
+                addProperty("encoding", "raw")
+                addProperty("audio", base64Audio)
+            })
         }
+        return gson.toJson(json)
     }
 
     fun disconnect() {
         webSocket?.close(1000, "Normal closure")
         webSocket = null
-        sessionId = null
     }
 
     private fun parseResult(json: JsonObject): RTASRResult? {
         val data = json.getAsJsonObject("data") ?: return null
-        val cn = data.getAsJsonObject("cn") ?: return null
-        val st = cn.getAsJsonObject("st") ?: return null
-        val rt = st.getAsJsonArray("rt") ?: return null
+        val result = data.getAsJsonObject("result") ?: return null
 
-        if (rt.size() == 0) return null
-
-        val ws = rt[0].asJsonObject.getAsJsonArray("ws") ?: return null
+        val ws = result.getAsJsonArray("ws") ?: return null
+        if (ws.size() == 0) return null
 
         val textBuilder = StringBuilder()
         for (wsItem in ws) {
@@ -124,17 +176,16 @@ class XunfeiRTASRClient(
         val text = textBuilder.toString()
         if (text.isEmpty()) return null
 
-        val type = st.get("type")?.asInt ?: 0
-        val isFinal = data.get("ls")?.asBoolean ?: false
+        val isFinal = result.get("ls")?.asBoolean ?: false
+        val pg = result.getAsJsonObject("pg")
+        val isMiddle = pg != null
+
+        Log.d(TAG, "Parsed result: text=$text, isFinal=$isFinal, isMiddle=$isMiddle")
 
         return RTASRResult(
             text = text,
             isFinal = isFinal,
-            isMiddle = type == 1
+            isMiddle = isMiddle
         )
-    }
-
-    private fun ByteArray.toByteString(): okio.ByteString {
-        return okio.ByteString.of(*this)
     }
 }

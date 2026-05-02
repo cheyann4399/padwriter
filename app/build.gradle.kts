@@ -29,6 +29,9 @@ android {
         buildConfigField("String", "XUNFEI_API_KEY", "\"${localProperties.getProperty("XUNFEI_API_KEY", "")}\"")
         buildConfigField("String", "XUNFEI_API_SECRET", "\"${localProperties.getProperty("XUNFEI_API_SECRET", "")}\"")
         buildConfigField("String", "MINIMAX_API_KEY", "\"${localProperties.getProperty("MINIMAX_API_KEY", "")}\"")
+        buildConfigField("String", "TENCENT_SECRET_ID", "\"${localProperties.getProperty("TENCENT_SECRET_ID", "")}\"")
+        buildConfigField("String", "TENCENT_SECRET_KEY", "\"${localProperties.getProperty("TENCENT_SECRET_KEY", "")}\"")
+        buildConfigField("String", "TENCENT_APP_ID", "\"${localProperties.getProperty("TENCENT_APP_ID", "")}\"")
     }
 
     buildTypes {
@@ -73,6 +76,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0")
     implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.7.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
+    implementation("androidx.lifecycle:lifecycle-service:2.7.0")
 
     // Network
     implementation("com.squareup.okhttp3:okhttp:4.12.0")

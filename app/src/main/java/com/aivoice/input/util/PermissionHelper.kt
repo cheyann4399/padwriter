@@ -44,12 +44,12 @@ object PermissionHelper {
     }
 
     fun hasAccessibilityPermission(context: Context): Boolean {
-        val service = "${context.packageName}/.service.TextInjectService"
+        val service = "${context.packageName}/com.aivoice.input.service.TextInjectService"
         val enabledServices = Settings.Secure.getString(
             context.contentResolver,
             Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
         ) ?: return false
-        return enabledServices.contains(service)
+        return enabledServices.contains(context.packageName) || enabledServices.contains(service)
     }
 
     fun openAccessibilitySettings(context: Context) {

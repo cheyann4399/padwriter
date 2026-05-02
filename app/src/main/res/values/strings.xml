@@ -35,4 +35,7 @@
     <string name="replacement_text_hint">替换文本</string>
     <string name="add">添加</string>
     <string name="cancel">取消</string>
+    <string name="notification_channel_name">悬浮球服务</string>
+    <string name="notification_channel_description">保持悬浮球在任意界面显示</string>
+    <string name="notification_text">悬浮球运行中</string>
 </resources>

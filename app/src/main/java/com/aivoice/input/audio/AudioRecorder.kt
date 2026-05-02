@@ -7,7 +7,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.isActive
 
 class AudioRecorder {
 
@@ -25,7 +24,10 @@ class AudioRecorder {
         )
 
         if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
-            throw IllegalStateException("AudioRecord initialization failed")
+            val state = audioRecord?.state ?: -1
+            audioRecord?.release()
+            audioRecord = null
+            throw IllegalStateException("AudioRecord initialization failed, state=$state. Check RECORD_AUDIO permission.")
         }
 
         audioRecord?.startRecording()
@@ -33,7 +35,7 @@ class AudioRecorder {
 
         val buffer = ByteArray(AudioConfig.CHUNK_SIZE_BYTES)
 
-        while (isRecording && isActive) {
+        while (isRecording) {
             val bytesRead = audioRecord?.read(buffer, 0, AudioConfig.CHUNK_SIZE_BYTES) ?: -1
             if (bytesRead == AudioConfig.CHUNK_SIZE_BYTES) {
                 emit(buffer.copyOf())
