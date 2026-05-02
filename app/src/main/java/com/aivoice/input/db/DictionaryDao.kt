@@ -23,4 +23,7 @@ interface DictionaryDao {
 
     @Query("DELETE FROM dictionary WHERE original = :original")
     suspend fun deleteByOriginal(original: String)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAll(entries: List<DictionaryEntry>)
 }
