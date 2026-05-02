@@ -1,6 +1,5 @@
 package com.aivoice.input.ai
 
-import android.util.Log
 import com.aivoice.input.model.Beat
 import com.aivoice.input.model.Character
 import com.aivoice.input.model.WorldRule
