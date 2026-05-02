@@ -44,6 +44,12 @@
             android:name=".ui.dictionary.DictionaryActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".ui.writer.WriterPadActivity"
+            android:exported="false"
+            android:label="@string/writer_pad_title"
+            android:theme="@style/Theme.PadWriter" />
+
         <!-- Floating Ball Service -->
         <service
             android:name=".service.FloatingBallService"
