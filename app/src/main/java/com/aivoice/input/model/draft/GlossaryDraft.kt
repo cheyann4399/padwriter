@@ -7,5 +7,7 @@ data class GlossaryDraft(
     val word: String,
     val type: GlossaryType,
     val sourceId: String,
-    val priority: GlossaryPriority
+    val priority: GlossaryPriority,
+    val aliases: List<String> = emptyList(),
+    val canonicalId: String? = null
 )
