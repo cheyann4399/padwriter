@@ -20,6 +20,7 @@ import com.aivoice.input.MainActivity
 import com.aivoice.input.R
 import com.aivoice.input.audio.AudioRecorder
 import com.aivoice.input.db.AppDatabase
+import com.aivoice.input.model.BeatContext
 import com.aivoice.input.model.HistoryItem
 import com.aivoice.input.model.PolishStyle
 import com.aivoice.input.network.ai.MiniMaxClient
@@ -61,6 +62,26 @@ class FloatingBallService : LifecycleService() {
     private var longPressCheckJob: Job? = null
     private var recordingJob: Job? = null
     private var currentPolishedText = StringBuilder()
+
+    // Beat context for WriterPad integration
+    private var beatContext: BeatContext? = null
+
+    /**
+     * Update beat context from WriterPad.
+     * Called when user selects a beat.
+     */
+    fun updateBeatContext(context: BeatContext?) {
+        this.beatContext = context
+        Log.d(TAG, "Beat context updated: ${context?.beatTitle}")
+    }
+
+    /**
+     * Clear beat context when leaving WriterPad.
+     */
+    fun clearBeatContext() {
+        this.beatContext = null
+        Log.d(TAG, "Beat context cleared")
+    }
 
     companion object {
         private const val TAG = "FloatingBallService"
@@ -329,13 +350,13 @@ class FloatingBallService : LifecycleService() {
             serviceScope.launch {
                 try {
                     val style = getDefaultPolishStyle()
-                    Log.d(TAG, "Stopping pipeline with style: $style")
+                    Log.d(TAG, "Stopping pipeline with style: $style, context: ${beatContext?.beatTitle}")
 
                     // 重置注入器，准备接收 AI 润色结果
                     TextInjectService.getInstance()?.resetInjection()
 
                     var firstChunk = true
-                    pipeline.stop(style).collectLatest { chunk ->
+                    pipeline.stop(style, beatContext).collectLatest { chunk ->
                         Log.d(TAG, "Received chunk: $chunk")
                         if (firstChunk) {
                             // 第一个 chunk 替换掉 ASR 文字
