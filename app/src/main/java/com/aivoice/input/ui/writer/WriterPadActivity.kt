@@ -112,7 +112,11 @@ class WriterPadActivity : AppCompatActivity() {
         }
 
         // Render error
-        state.error?.let { showError(it) }
+        state.error?.let {
+            showError(it)
+            // Clear error after displaying to prevent repeated toasts
+            viewModel.processIntent(WriterPadIntent.ClearError)
+        }
     }
 
     private fun renderBeatManager(state: WriterPadState) {

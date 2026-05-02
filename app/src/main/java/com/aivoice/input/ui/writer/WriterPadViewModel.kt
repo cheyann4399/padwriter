@@ -18,6 +18,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -64,11 +66,10 @@ class WriterPadViewModel(
             try {
                 val project = projectRepository.getProjectById(projectId)
                 if (project != null) {
-                    // Collect the flow to get the beats list
-                    beatRepository.getBeatsForProject(projectId).collect { beats ->
-                        val result = WriterPadResult.ProjectLoaded(project, beats)
-                        updateState { reducer.reduce(it, result) }
-                    }
+                    // Use take(1) to get the first emission and avoid indefinite collection
+                    val beats = beatRepository.getBeatsForProject(projectId).take(1).first()
+                    val result = WriterPadResult.ProjectLoaded(project, beats)
+                    updateState { reducer.reduce(it, result) }
                 } else {
                     updateState { reducer.reduce(it, WriterPadResult.Error("Project not found")) }
                 }
