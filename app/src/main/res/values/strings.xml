@@ -38,4 +38,17 @@
     <string name="notification_channel_name">悬浮球服务</string>
     <string name="notification_channel_description">保持悬浮球在任意界面显示</string>
     <string name="notification_text">悬浮球运行中</string>
+
+    <!-- WriterPad -->
+    <string name="writer_pad_title">创作工坊</string>
+    <string name="guide_welcome">开始你的创作之旅</string>
+    <string name="project_name_hint">作品名称</string>
+    <string name="premise_hint">输入你的故事脑洞或前提...\n例如：一个少年在废墟中发现神秘石碑，从此踏上修仙之路</string>
+    <string name="start_writing">开始创作</string>
+    <string name="ai_input_hint">补充设定或描述...</string>
+    <string name="send">发送</string>
+    <string name="confirm_beats">确认节拍</string>
+    <string name="regenerate">重新生成</string>
+    <string name="generating">生成中...</string>
+    <string name="no_beats">暂无节拍</string>
 </resources>
