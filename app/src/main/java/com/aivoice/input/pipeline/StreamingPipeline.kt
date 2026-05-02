@@ -2,6 +2,7 @@ package com.aivoice.input.pipeline
 
 import android.util.Log
 import com.aivoice.input.audio.AudioRecorder
+import com.aivoice.input.model.BeatContext
 import com.aivoice.input.model.PolishStyle
 import com.aivoice.input.network.ai.MiniMaxClient
 import com.aivoice.input.network.rtasr.RTASRResult
@@ -92,9 +93,54 @@ class StreamingPipeline(
         val replacedText = dictionaryReplacer.replace(processedText)
         val prompt = promptEngine.build(style, replacedText)
 
+        // Debug logging for polish flow
+        val result = StringBuilder()
         miniMaxClient.chatStream(prompt).collect { chunk ->
+            result.append(chunk)
             emit(chunk)
         }
+
+        Log.d(TAG, """
+            |=== AI 润色调试 ===
+            |[ASR 原文]: $rawText
+            |[后处理]: $processedText
+            |[词库替换]: $replacedText
+            |[AI 润色]: $result
+            |==================
+        """.trimMargin())
+    }.flowOn(Dispatchers.IO)
+
+    /**
+     * Stop recording and polish with optional beat context.
+     */
+    fun stop(style: PolishStyle, context: BeatContext?): Flow<String> = flow {
+        audioRecorder.stopRecording()
+        asrClient.end()
+
+        val rawText = speechBuffer.merge()
+        if (rawText.isEmpty()) {
+            return@flow
+        }
+
+        val processedText = postProcessor.process(rawText)
+        val replacedText = dictionaryReplacer.replace(processedText)
+        val prompt = promptEngine.buildWithContext(replacedText, context, style)
+
+        val result = StringBuilder()
+        miniMaxClient.chatStream(prompt).collect { chunk ->
+            result.append(chunk)
+            emit(chunk)
+        }
+
+        Log.d(TAG, """
+            |=== AI 润色调试 (带上下文) ===
+            |[节拍]: ${context?.beatTitle ?: "无"}
+            |[ASR 原文]: $rawText
+            |[后处理]: $processedText
+            |[词库替换]: $replacedText
+            |[AI 润色]: $result
+            |==================
+        """.trimMargin())
     }.flowOn(Dispatchers.IO)
 
     fun stop() {
