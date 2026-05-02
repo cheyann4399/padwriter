@@ -7,12 +7,16 @@ import com.aivoice.input.ai.ExistingSettings
 import com.aivoice.input.model.Beat
 import com.aivoice.input.model.Character
 import com.aivoice.input.model.WorldRule
+import com.aivoice.input.model.BeatContext
+import com.aivoice.input.model.CharacterSummary
+import com.aivoice.input.model.WorldRuleSummary
 import com.aivoice.input.model.draft.BeatDraft
 import com.aivoice.input.model.draft.ClassificationResult
 import com.aivoice.input.repository.BeatContextService
 import com.aivoice.input.repository.BeatRepository
 import com.aivoice.input.repository.ProjectRepository
 import com.aivoice.input.ai.AIGuideEngine
+import com.aivoice.input.service.FloatingBallService
 import com.aivoice.input.ui.writer.mvi.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -37,6 +41,13 @@ class WriterPadViewModel(
 
     private val _uiState = MutableStateFlow(WriterPadState())
     val uiState: StateFlow<WriterPadState> = _uiState.asStateFlow()
+
+    // Reference to FloatingBallService for context sync
+    private var floatingBallService: FloatingBallService? = null
+
+    fun setFloatingBallService(service: FloatingBallService?) {
+        this.floatingBallService = service
+    }
 
     fun processIntent(intent: WriterPadIntent) {
         when (intent) {
@@ -195,10 +206,37 @@ class WriterPadViewModel(
                     outline = context.outline
                 )
                 updateState { reducer.reduce(it, result) }
+
+                // Sync context to FloatingBallService
+                syncBeatContextToService(beat, context)
             } catch (e: Exception) {
                 updateState { reducer.reduce(it, WriterPadResult.Error(e.message ?: "Load beat failed")) }
             }
         }
+    }
+
+    private fun syncBeatContextToService(
+        beat: Beat,
+        context: com.aivoice.input.repository.BeatContext
+    ) {
+        val beatContext = BeatContext(
+            beatId = beat.beatId,
+            beatTitle = beat.title,
+            beatSummary = beat.summary,
+            characters = context.characters.map {
+                CharacterSummary(it.name, truncate(it.content, 500))
+            },
+            worldRules = context.worldRules.map {
+                WorldRuleSummary(it.title, truncate(it.content, 300))
+            },
+            outlineSummary = context.outline?.content?.let { truncate(it, 500) }
+        )
+        floatingBallService?.updateBeatContext(beatContext)
+    }
+
+    private fun truncate(text: String, maxLength: Int): String {
+        return if (text.length <= maxLength) text
+        else text.take(maxLength) + "..."
     }
 
     private fun toggleBeatList() {
