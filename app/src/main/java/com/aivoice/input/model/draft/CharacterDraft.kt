@@ -7,7 +7,7 @@ data class CharacterDraft(
     val name: String,
     val content: String,
     val action: DraftAction,
-    val targetId: String = "",
     val contextType: ContextType,
-    val contextNote: String
+    val contextNote: String,
+    val targetId: String = ""
 )

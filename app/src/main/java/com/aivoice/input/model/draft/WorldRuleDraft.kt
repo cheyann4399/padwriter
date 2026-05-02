@@ -7,7 +7,7 @@ data class WorldRuleDraft(
     val title: String,
     val content: String,
     val action: DraftAction,
-    val targetId: String = "",
     val contextType: ContextType,
-    val contextNote: String
+    val contextNote: String,
+    val targetId: String = ""
 )
