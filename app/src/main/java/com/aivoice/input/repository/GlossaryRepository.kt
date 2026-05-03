@@ -33,13 +33,8 @@ class GlossaryRepository(private val database: AppDatabase) {
             val glossary = database.glossaryDao().getByProjectOnce(projectId)
             val entries = glossary.map { item ->
                 DictionaryEntry(
-                    word = item.word,
-                    replacement = item.word,
-                    priority = when (item.priority) {
-                        GlossaryPriority.HIGH -> 100
-                        GlossaryPriority.MEDIUM -> 50
-                        GlossaryPriority.LOW -> 10
-                    }
+                    original = item.word,
+                    replacement = item.word
                 )
             }
             database.dictionaryDao().insertAll(entries)

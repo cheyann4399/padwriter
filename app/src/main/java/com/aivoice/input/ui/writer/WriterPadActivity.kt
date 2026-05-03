@@ -2,6 +2,7 @@ package com.aivoice.input.ui.writer
 
 import android.os.Bundle
 import android.view.View
+import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ProgressBar
@@ -37,7 +38,7 @@ class WriterPadActivity : AppCompatActivity() {
     }
 
     // Views
-    private lateinit var contentContainer: View
+    private lateinit var contentContainer: ViewGroup
     private lateinit var beatTitle: TextView
     private lateinit var beatProgress: ProgressBar
     private lateinit var aiPanel: View

@@ -116,7 +116,7 @@ class FloatingBallService : LifecycleService() {
 
     private val binder = LocalBinder()
 
-    override fun onBind(intent: Intent?): android.os.IBinder {
+    override fun onBind(intent: Intent): android.os.IBinder? {
         super.onBind(intent)
         return binder
     }
