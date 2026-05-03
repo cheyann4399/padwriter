@@ -35,11 +35,29 @@
 | 词库管理 | ✅ | DictionaryActivity (添加/删除/开关) |
 | 真机测试 | ✅ | 完整流程验证通过 |
 
+### ✅ WriterPad 模块 (Phase 1-4)
+
+| 阶段 | 状态 | 说明 |
+|------|------|------|
+| Phase 1: 数据层 | ✅ | Room 实体、DAO、Repository (7个实体，迁移v1→v2) |
+| Phase 2: AI 引擎 | ✅ | 提示词构建、JSON解析、冲突检测、AIGuideEngine |
+| Phase 3: UI 层 | ✅ | MVI 架构、ViewModel、Activity、适配器 |
+| Phase 4: 服务集成 | ✅ | 悬浮球上下文感知润色、服务绑定 |
+
+**Phase 4 详细功能：**
+- `BeatContext` 数据类传递节拍上下文
+- `PromptEngine.buildWithContext()` 构建上下文感知提示词
+- `StreamingPipeline.stop(style, context)` 支持上下文润色
+- `FloatingBallService` 上下文管理 (@Volatile 线程安全)
+- `WriterPadViewModel` 服务绑定 (WeakReference 防内存泄漏)
+- `WriterPadActivity` 服务绑定/解绑 (isBound 防崩溃)
+
 ### 🚧 待完成
 
 | 模块 | 状态 | 说明 |
 |------|------|------|
 | UI 优化 | 🚧 | 界面美化和交互优化 |
+| 单元测试 | 🚧 | WriterPad 模块测试覆盖 |
 
 ## 项目结构
 
@@ -55,9 +73,20 @@ app/src/main/java/com/aivoice/input/
 │   │   └── HistoryAdapter.kt
 │   ├── settings/                 # 设置页
 │   │   └── SettingsActivity.kt
-│   └── dictionary/               # 词库管理
-│       ├── DictionaryActivity.kt
-│       └── DictionaryAdapter.kt
+│   ├── dictionary/               # 词库管理
+│   │   ├── DictionaryActivity.kt
+│   │   └── DictionaryAdapter.kt
+│   └── writer/                   # WriterPad 写作模块
+│       ├── WriterPadActivity.kt
+│       ├── WriterPadViewModel.kt
+│       ├── WriterPadViewModelFactory.kt
+│       ├── adapters/
+│       │   └── BeatListAdapter.kt
+│       └── mvi/                  # MVI 架构
+│           ├── WriterPadState.kt
+│           ├── WriterPadIntent.kt
+│           ├── WriterPadResult.kt
+│           └── WriterPadReducer.kt
 ├── service/                      # 服务层
 │   ├── FloatingBallService.kt    # 悬浮球前台服务
 │   ├── AudioRecordService.kt     # 录音服务
@@ -75,6 +104,14 @@ app/src/main/java/com/aivoice/input/
 │   └── ai/                       # AI 润色
 │       ├── MiniMaxClient.kt
 │       └── MiniMaxConfig.kt
+├── ai/                           # AI 引导引擎
+│   ├── AIGuideEngine.kt          # 主编排器
+│   ├── GuidePromptBuilder.kt     # 提示词构建
+│   ├── GuideResponseParser.kt    # JSON 解析
+│   ├── GuideEvent.kt             # 流式事件
+│   ├── JsonRepair.kt             # JSON 修复
+│   ├── ConflictModels.kt         # 冲突检测
+│   └── ExistingSettings.kt       # 设置摘要
 ├── audio/                        # 音频处理
 │   ├── AudioRecorder.kt
 │   └── AudioConfig.kt
@@ -82,16 +119,41 @@ app/src/main/java/com/aivoice/input/
 │   └── TextInjector.kt           # 三级回退策略
 ├── repository/                   # 数据仓库
 │   ├── HistoryRepository.kt
-│   └── DictionaryRepository.kt
+│   ├── DictionaryRepository.kt
+│   ├── ProjectRepository.kt      # WriterPad
+│   ├── BeatRepository.kt
+│   ├── CharacterRepository.kt
+│   ├── WorldRuleRepository.kt
+│   ├── OutlineRepository.kt
+│   ├── GlossaryRepository.kt
+│   ├── MappingRepository.kt
+│   └── BeatContextService.kt     # 节拍上下文加载
 ├── db/                           # 数据库
-│   ├── AppDatabase.kt
+│   ├── AppDatabase.kt            # 数据库 + 迁移
 │   ├── HistoryDao.kt
-│   └── DictionaryDao.kt
+│   ├── DictionaryDao.kt
+│   ├── ProjectDao.kt             # WriterPad DAOs
+│   ├── BeatDao.kt
+│   ├── CharacterDao.kt
+│   ├── WorldRuleDao.kt
+│   ├── OutlineDao.kt
+│   ├── GlossaryDao.kt
+│   └── BeatMappingDao.kt
 ├── model/                        # 数据模型
 │   ├── PolishStyle.kt
 │   ├── HistoryItem.kt
 │   ├── DictionaryEntry.kt
-│   └── AppSettings.kt
+│   ├── AppSettings.kt
+│   ├── BeatContext.kt            # WriterPad 模型
+│   ├── Project.kt
+│   ├── Beat.kt
+│   ├── Character.kt
+│   ├── WorldRule.kt
+│   ├── Outline.kt
+│   ├── Glossary.kt
+│   ├── BeatMapping.kt
+│   ├── enums/                    # 枚举类型
+│   └── draft/                    # 草稿模型
 ├── util/                         # 工具类
 │   ├── PermissionHelper.kt
 │   └── VibrationHelper.kt
