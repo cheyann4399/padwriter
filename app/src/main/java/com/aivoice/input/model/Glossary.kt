@@ -18,5 +18,10 @@ data class Glossary(
     val word: String,
     val type: GlossaryType,
     val sourceId: String,
-    val priority: GlossaryPriority
-)
+    val priority: GlossaryPriority,
+    val aliases: String = ""  // 新增：别名列表，逗号分隔
+) {
+    fun getAliasList(): List<String> {
+        return if (aliases.isNotEmpty()) aliases.split(",") else emptyList()
+    }
+}
