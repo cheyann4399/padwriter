@@ -10,20 +10,24 @@ data class BeatContext(
     val beatSummary: String,
     val characters: List<CharacterSummary>,
     val worldRules: List<WorldRuleSummary>,
-    val outlineSummary: String?
+    val outlineSummary: String?,
+    val beatList: List<BeatInfo> = emptyList(),  // 新增：节拍列表
+    val currentBeatIndex: Int = 0  // 新增：当前节拍索引
 )
 
 /**
- * Character summary for prompt context.
+ * 节拍简要信息，用于悬浮球显示
  */
+data class BeatInfo(
+    val beatId: String,
+    val title: String
+)
+
 data class CharacterSummary(
     val name: String,
     val content: String
 )
 
-/**
- * World rule summary for prompt context.
- */
 data class WorldRuleSummary(
     val title: String,
     val content: String
