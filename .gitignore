@@ -14,7 +14,6 @@
 bin/
 gen/
 out/
-release/
 
 # Gradle files
 .gradle/
@@ -91,3 +90,7 @@ pr.txt
 # IDE specific
 .workbuddy/
 .vscode/
+
+# Internal development docs (not for public)
+docs/superpowers/
+docs/debug-polish-log.md
