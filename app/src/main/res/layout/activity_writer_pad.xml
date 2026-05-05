@@ -13,7 +13,10 @@
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            app:title="@string/writer_pad_title" />
+            app:title="@string/writer_pad_title"
+            app:menu="@menu/menu_writer_pad"
+            app:navigationIcon="@android:drawable/ic_menu_sort_by_size"
+            android:contentDescription="@string/project_list" />
 
     </com.google.android.material.appbar.AppBarLayout>
 
@@ -22,7 +25,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_marginTop="?attr/actionBarSize"
-        android:layout_marginBottom="80dp" />
+        android:layout_marginBottom="60dp" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -30,38 +33,87 @@
         android:layout_gravity="bottom"
         android:orientation="vertical">
 
-        <include
-            android:id="@+id/beat_manager"
-            layout="@layout/view_beat_manager"
+        <!-- Action buttons for beat preview (shown during CONFIRMING state) -->
+        <LinearLayout
+            android:id="@+id/beat_preview_buttons"
             android:layout_width="match_parent"
-            android:layout_height="60dp" />
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="8dp"
+            android:background="?attr/colorSurface"
+            android:elevation="4dp"
+            android:visibility="gone">
 
+            <Button
+                android:id="@+id/regenerate_beats_button"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="@string/regenerate"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_marginEnd="8dp" />
+
+            <Button
+                android:id="@+id/confirm_beats_button"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="@string/confirm_beats" />
+
+        </LinearLayout>
+
+        <!-- AI Input Panel - visible in COMPLETED state -->
         <LinearLayout
             android:id="@+id/ai_panel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:visibility="gone"
             android:background="?attr/colorSurface"
             android:elevation="4dp">
 
-            <EditText
-                android:id="@+id/ai_input"
+            <!-- Loading indicator -->
+            <ProgressBar
+                android:id="@+id/ai_loading_progress"
+                style="@style/Widget.AppCompat.ProgressBar.Horizontal"
+                android:layout_width="match_parent"
+                android:layout_height="4dp"
+                android:indeterminate="true"
+                android:visibility="gone" />
+
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="@string/ai_input_hint"
-                android:inputType="textMultiLine"
-                android:maxLines="3"
-                android:padding="8dp" />
+                android:orientation="horizontal"
+                android:padding="8dp"
+                android:gravity="center_vertical">
 
-            <Button
-                android:id="@+id/ai_send_button"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="end"
-                android:text="@string/send" />
+                <EditText
+                    android:id="@+id/ai_input"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:hint="@string/ai_input_hint"
+                    android:inputType="textMultiLine"
+                    android:maxLines="2"
+                    android:background="@android:color/transparent"
+                    android:padding="8dp" />
+
+                <Button
+                    android:id="@+id/ai_send_button"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/send" />
+
+            </LinearLayout>
 
         </LinearLayout>
+
+        <include
+            android:id="@+id/beat_manager"
+            layout="@layout/view_beat_manager"
+            android:layout_width="match_parent"
+            android:layout_height="60dp" />
 
     </LinearLayout>
 

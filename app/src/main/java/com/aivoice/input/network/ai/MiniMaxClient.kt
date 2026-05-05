@@ -33,9 +33,13 @@ class MiniMaxClient(
 
     fun chatStream(prompt: String): Flow<String> = callbackFlow {
         val requestBody = buildRequestBody(prompt)
+        val url = "${MiniMaxConfig.BASE_URL}/v1/messages"
+
+        Log.d(TAG, "Starting stream request to: $url")
+        Log.d(TAG, "Prompt length: ${prompt.length}")
 
         val request = Request.Builder()
-            .url("${MiniMaxConfig.BASE_URL}/v1/messages")
+            .url(url)
             .header("Authorization", "Bearer $apiKey")
             .header("Content-Type", "application/json")
             .header("Accept", "text/event-stream")
@@ -51,7 +55,9 @@ class MiniMaxClient(
                 type: String?,
                 data: String
             ) {
+                Log.d(TAG, "Received event: type=$type, data=$data")
                 if (data == "[DONE]") {
+                    Log.d(TAG, "Stream completed")
                     close()
                     return
                 }
@@ -63,11 +69,15 @@ class MiniMaxClient(
             }
 
             override fun onClosed(eventSource: EventSource) {
+                Log.d(TAG, "Stream closed normally")
                 close()
             }
 
             override fun onFailure(eventSource: EventSource, t: Throwable?, response: okhttp3.Response?) {
-                Log.e(TAG, "Stream failure: ${t?.message}")
+                Log.e(TAG, "Stream failure: ${t?.message}, response: ${response?.code} ${response?.message}")
+                response?.body?.string()?.let { body ->
+                    Log.e(TAG, "Error body: $body")
+                }
                 close(t ?: Exception("Unknown error"))
             }
         }
@@ -82,7 +92,7 @@ class MiniMaxClient(
     private fun buildRequestBody(prompt: String): String {
         val json = JsonObject().apply {
             addProperty("model", MiniMaxConfig.MODEL)
-            addProperty("max_tokens", 2048)
+            addProperty("max_tokens", 8192)
             addProperty("stream", true)
             add("messages", gson.toJsonTree(listOf(
                 mapOf("role" to "user", "content" to prompt)
@@ -95,10 +105,17 @@ class MiniMaxClient(
         return try {
             val json = gson.fromJson(data, JsonObject::class.java)
 
-            // Try Anthropic format
+            // Try MiniMax/Anthropic content_block_delta format
             val delta = json.getAsJsonObject("delta")
-            if (delta != null && delta.has("text")) {
-                return delta.get("text").asString
+            if (delta != null) {
+                // text_delta format
+                if (delta.has("text")) {
+                    return delta.get("text").asString
+                }
+                // thinking_delta format (skip thinking content)
+                if (delta.has("thinking")) {
+                    return null  // Skip thinking blocks, only return text
+                }
             }
 
             // Try OpenAI format

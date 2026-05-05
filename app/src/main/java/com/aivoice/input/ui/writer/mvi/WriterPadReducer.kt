@@ -16,7 +16,13 @@ class WriterPadReducer {
 
             is WriterPadResult.ProjectCreated -> state.copy(
                 project = result.project,
-                isLoading = false
+                beatList = emptyList(),
+                currentBeat = null,
+                characters = emptyList(),
+                worldRules = emptyList(),
+                outline = null,
+                // 保持当前 guideState（可能是 GENERATING），不强制设为 INPUTTING
+                guideResult = null
             )
 
             is WriterPadResult.BeatsGenerating -> state.copy(
@@ -42,7 +48,8 @@ class WriterPadReducer {
                 currentBeat = result.beat,
                 characters = result.characters,
                 worldRules = result.worldRules,
-                outline = result.outline
+                outline = result.outline,
+                isLoading = false
             )
 
             is WriterPadResult.ClassificationDone -> state.copy(

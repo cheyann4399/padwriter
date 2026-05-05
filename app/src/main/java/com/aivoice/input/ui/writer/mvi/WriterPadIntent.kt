@@ -5,8 +5,10 @@ package com.aivoice.input.ui.writer.mvi
  */
 sealed class WriterPadIntent {
     // Project operations
+    object LoadLatestProject : WriterPadIntent()
     data class LoadProject(val projectId: Long) : WriterPadIntent()
     data class CreateProject(val name: String, val premise: String) : WriterPadIntent()
+    data class DeleteProject(val projectId: Long) : WriterPadIntent()
 
     // Guide flow
     object StartGuide : WriterPadIntent()

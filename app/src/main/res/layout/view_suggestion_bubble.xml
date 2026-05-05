@@ -1,63 +1,160 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="280dp"
-    android:layout_height="wrap_content"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="168dp"
+    android:orientation="vertical"
     android:background="@drawable/bg_bubble_card"
-    android:padding="12dp"
     android:elevation="8dp">
 
+    <!-- 顶部标题栏 -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical">
+        android:layout_height="40dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="12dp"
+        android:paddingEnd="8dp">
 
         <TextView
-            android:layout_width="wrap_content"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:text="写作建议"
+            android:layout_weight="1"
+            android:text="AI建议"
             android:textColor="#333333"
             android:textSize="14sp"
-            android:textStyle="bold"
-            android:paddingBottom="8dp" />
+            android:textStyle="bold" />
 
-        <TextView
-            android:id="@+id/suggestion_1"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:padding="12dp"
-            android:background="?attr/selectableItemBackground"
-            android:textColor="#333333"
-            android:textSize="13sp"
-            android:visibility="gone" />
-
-        <TextView
-            android:id="@+id/suggestion_2"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:padding="12dp"
-            android:background="?attr/selectableItemBackground"
-            android:textColor="#333333"
-            android:textSize="13sp"
-            android:visibility="gone" />
-
-        <TextView
-            android:id="@+id/suggestion_3"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:padding="12dp"
-            android:background="?attr/selectableItemBackground"
-            android:textColor="#333333"
-            android:textSize="13sp"
-            android:visibility="gone" />
+        <ImageButton
+            android:id="@+id/close_button"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@drawable/bg_ripple_borderless"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:tint="#999999"
+            android:scaleType="centerInside" />
 
     </LinearLayout>
 
-    <ImageButton
-        android:id="@+id/close_button"
-        android:layout_width="24dp"
-        android:layout_height="24dp"
-        android:layout_gravity="top|end"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:src="@android:drawable/ic_menu_close_clear_cancel" />
+    <!-- 竖向滚动列表 -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:paddingHorizontal="12dp"
+        android:paddingBottom="8dp"
+        android:scrollbars="vertical">
 
-</FrameLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:id="@+id/suggestion_1"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingVertical="8dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/suggestion_1_text"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textColor="#333333"
+                    android:textSize="13sp"
+                    android:lineSpacingExtra="2dp" />
+
+                <Button
+                    android:id="@+id/suggestion_1_btn"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:text="应用"
+                    android:textSize="12sp"
+                    android:paddingHorizontal="12dp"
+                    android:minWidth="0dp"
+                    android:background="@drawable/bg_ripple" />
+
+            </LinearLayout>
+
+            <View
+                android:id="@+id/divider_1"
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#E0E0E0"
+                android:visibility="gone" />
+
+            <LinearLayout
+                android:id="@+id/suggestion_2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingVertical="8dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/suggestion_2_text"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textColor="#333333"
+                    android:textSize="13sp"
+                    android:lineSpacingExtra="2dp" />
+
+                <Button
+                    android:id="@+id/suggestion_2_btn"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:text="应用"
+                    android:textSize="12sp"
+                    android:paddingHorizontal="12dp"
+                    android:minWidth="0dp"
+                    android:background="@drawable/bg_ripple" />
+
+            </LinearLayout>
+
+            <View
+                android:id="@+id/divider_2"
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#E0E0E0"
+                android:visibility="gone" />
+
+            <LinearLayout
+                android:id="@+id/suggestion_3"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingVertical="8dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/suggestion_3_text"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textColor="#333333"
+                    android:textSize="13sp"
+                    android:lineSpacingExtra="2dp" />
+
+                <Button
+                    android:id="@+id/suggestion_3_btn"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:text="应用"
+                    android:textSize="12sp"
+                    android:paddingHorizontal="12dp"
+                    android:minWidth="0dp"
+                    android:background="@drawable/bg_ripple" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+    </ScrollView>
+
+</LinearLayout>

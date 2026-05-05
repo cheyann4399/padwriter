@@ -83,3 +83,11 @@ lint/tmp/
 local.properties
 *.env
 secrets.properties
+
+# Temporary files
+pr.txt
+*.tmp
+
+# IDE specific
+.workbuddy/
+.vscode/

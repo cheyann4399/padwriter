@@ -150,6 +150,14 @@ class StreamingPipeline(
     }
 
     fun getCurrentText(): String = speechBuffer.getCurrentText()
+
+    /**
+     * Clear glossary from dictionary replacer.
+     * Used when beat indicator is disabled.
+     */
+    fun clearGlossary() {
+        dictionaryReplacer.updateGlossary(emptyList())
+    }
 }
 
 sealed class PipelineState {

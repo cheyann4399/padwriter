@@ -54,13 +54,32 @@
 
     </RadioGroup>
 
+    <TextView
+        android:id="@+id/beat_indicator_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/beat_indicator_label"
+        android:textSize="16sp"
+        android:layout_marginTop="24dp"
+        app:layout_constraintTop_toBottomOf="@id/style_group"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <androidx.appcompat.widget.SwitchCompat
+        android:id="@+id/beat_indicator_switch"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/beat_indicator_summary"
+        app:layout_constraintTop_toBottomOf="@id/beat_indicator_label"
+        app:layout_constraintStart_toStartOf="parent" />
+
     <Button
         android:id="@+id/history_button"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/view_history"
         android:layout_marginTop="32dp"
-        app:layout_constraintTop_toBottomOf="@id/style_group" />
+        app:layout_constraintTop_toBottomOf="@id/beat_indicator_switch" />
 
     <Button
         android:id="@+id/dictionary_button"
@@ -70,12 +89,89 @@
         android:layout_marginTop="8dp"
         app:layout_constraintTop_toBottomOf="@id/history_button" />
 
+    <TextView
+        android:id="@+id/writing_style_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/writing_style_settings"
+        android:textSize="16sp"
+        android:layout_marginTop="32dp"
+        app:layout_constraintTop_toBottomOf="@id/dictionary_button"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <TextView
+        android:id="@+id/writing_style_preset_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/writing_style_preset"
+        android:textSize="14sp"
+        android:layout_marginTop="16dp"
+        app:layout_constraintTop_toBottomOf="@id/writing_style_label"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <RadioGroup
+        android:id="@+id/writing_style_preset_group"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        app:layout_constraintTop_toBottomOf="@id/writing_style_preset_label"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <RadioButton
+            android:id="@+id/style_preset_none"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/style_preset_none" />
+
+        <RadioButton
+            android:id="@+id/style_preset_novel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/style_preset_novel" />
+
+        <RadioButton
+            android:id="@+id/style_preset_script"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/style_preset_script" />
+
+        <RadioButton
+            android:id="@+id/style_preset_essay"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/style_preset_essay" />
+
+    </RadioGroup>
+
+    <TextView
+        android:id="@+id/writing_style_custom_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/writing_style_custom"
+        android:textSize="14sp"
+        android:layout_marginTop="16dp"
+        app:layout_constraintTop_toBottomOf="@id/writing_style_preset_group"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <EditText
+        android:id="@+id/writing_style_custom_input"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/writing_style_custom_hint"
+        android:minLines="3"
+        android:maxLines="5"
+        android:gravity="top|start"
+        android:inputType="textMultiLine"
+        android:layout_marginTop="8dp"
+        app:layout_constraintTop_toBottomOf="@id/writing_style_custom_label"
+        app:layout_constraintStart_toStartOf="parent" />
+
     <Button
         android:id="@+id/hide_button"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/hide_floating_ball"
-        android:layout_marginTop="8dp"
-        app:layout_constraintTop_toBottomOf="@id/dictionary_button" />
+        android:layout_marginTop="24dp"
+        app:layout_constraintTop_toBottomOf="@id/writing_style_custom_input" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

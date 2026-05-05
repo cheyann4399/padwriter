@@ -209,3 +209,4 @@ AI_API_ENDPOINT=https://api.example.com/v1
 - [DATA_PERSISTENCE.md](./DATA_PERSISTENCE.md) - 数据持久化规范
 - [TESTING.md](./TESTING.md) - 测试指南
 - [项目验收标准.md](./项目验收标准.md) - 验收标准
+- [docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md) - 开发问题排查指南（遇到报错先查看此文档）

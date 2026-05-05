@@ -1,8 +1,11 @@
 package com.aivoice.input.ui.floating
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.util.AttributeSet
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.TextView
@@ -26,25 +29,44 @@ class BeatIndicatorView @JvmOverloads constructor(
     private var currentIndex = 0
     private var totalCount = 0
 
+    private var touchDownTime = 0L
+    private var hasPerformedLongClick = false
+    private val handler = Handler(Looper.getMainLooper())
+
+    private val longClickRunnable = Runnable {
+        hasPerformedLongClick = true
+        onBeatLongClick?.invoke()
+    }
+
     init {
         val view = LayoutInflater.from(context).inflate(R.layout.view_beat_indicator, this, true)
         beatPosition = view.findViewById(R.id.beat_position)
+        isClickable = true
+        isLongClickable = true
+    }
 
-        setOnTouchListener { _, event ->
-            when (event.action) {
-                android.view.MotionEvent.ACTION_DOWN -> true
-                android.view.MotionEvent.ACTION_UP -> {
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> {
+                touchDownTime = System.currentTimeMillis()
+                hasPerformedLongClick = false
+                handler.postDelayed(longClickRunnable, 500) // 500ms 长按阈值
+                return true
+            }
+            MotionEvent.ACTION_UP -> {
+                handler.removeCallbacks(longClickRunnable)
+                if (!hasPerformedLongClick) {
+                    // 短按：切换到下一节拍
                     onBeatClick?.invoke()
-                    true
                 }
-                else -> false
+                return true
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                handler.removeCallbacks(longClickRunnable)
+                return true
             }
         }
-
-        setOnLongClickListener {
-            onBeatLongClick?.invoke()
-            true
-        }
+        return super.dispatchTouchEvent(event)
     }
 
     /**

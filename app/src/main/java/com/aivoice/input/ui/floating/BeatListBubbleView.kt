@@ -34,7 +34,8 @@ class BeatListBubbleView(
         beatList = view.findViewById(R.id.beat_list)
         closeButton = view.findViewById(R.id.close_button)
 
-        beatList.layoutManager = LinearLayoutManager(context)
+        // 设置竖向布局
+        beatList.layoutManager = LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false)
         closeButton.setOnClickListener { dismiss() }
     }
 
@@ -50,9 +51,12 @@ class BeatListBubbleView(
         }
         beatList.adapter = adapter
 
+        val displayMetrics = context.resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+
         val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            screenWidth - 32,  // 固定宽度：屏幕宽度 - 左右边距
+            (168 * displayMetrics.density).toInt(),  // 固定高度：168dp
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             } else {
@@ -63,8 +67,8 @@ class BeatListBubbleView(
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = android.view.Gravity.TOP or android.view.Gravity.START
-            x = anchorX - 100
-            y = anchorY - 350
+            x = 16  // 左边距 16px
+            y = anchorY - 200  // 显示在悬浮球上方
         }
 
         windowManager.addView(view, params)
@@ -92,22 +96,44 @@ class BeatListBubbleView(
     ) : RecyclerView.Adapter<BeatListAdapter.ViewHolder>() {
 
         class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
-            val title: TextView = view.findViewById(android.R.id.text1)
+            val title: TextView = view as TextView
         }
 
         override fun onCreateViewHolder(parent: android.view.ViewGroup, viewType: Int): ViewHolder {
             val textView = TextView(parent.context).apply {
-                setPadding(16, 12, 16, 12)
+                setPadding(
+                    (16 * resources.displayMetrics.density).toInt(),
+                    (12 * resources.displayMetrics.density).toInt(),
+                    (16 * resources.displayMetrics.density).toInt(),
+                    (12 * resources.displayMetrics.density).toInt()
+                )
                 textSize = 14f
-                setOnClickListener { }
+                setBackgroundResource(com.aivoice.input.R.drawable.bg_ripple)
+                layoutParams = RecyclerView.LayoutParams(
+                    RecyclerView.LayoutParams.MATCH_PARENT,
+                    RecyclerView.LayoutParams.WRAP_CONTENT
+                )
             }
             return ViewHolder(textView)
         }
 
         override fun onBindViewHolder(holder: ViewHolder, position: Int) {
             val beat = beats[position]
-            val prefix = if (position == currentIndex) "▶ " else "   "
+            val isActive = position == currentIndex
+
+            // 恢复原来的格式：当前节拍显示 ▶，其他显示空格
+            val prefix = if (isActive) "▶ " else "   "
             holder.title.text = "$prefix${beat.title}"
+
+            // 当前节拍高亮显示
+            if (isActive) {
+                holder.title.setTextColor(android.graphics.Color.parseColor("#1976D2"))
+                holder.title.setTypeface(null, android.graphics.Typeface.BOLD)
+            } else {
+                holder.title.setTextColor(android.graphics.Color.parseColor("#333333"))
+                holder.title.setTypeface(null, android.graphics.Typeface.NORMAL)
+            }
+
             holder.title.setOnClickListener { onItemClick(beat.beatId) }
         }
 

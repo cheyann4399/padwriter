@@ -21,6 +21,7 @@ import com.aivoice.input.R
 import com.aivoice.input.audio.AudioRecorder
 import com.aivoice.input.db.AppDatabase
 import com.aivoice.input.model.BeatContext
+import com.aivoice.input.model.BeatInfo
 import com.aivoice.input.model.HistoryItem
 import com.aivoice.input.model.PolishStyle
 import com.aivoice.input.network.ai.MiniMaxClient
@@ -28,6 +29,10 @@ import com.aivoice.input.network.rtasr.TencentASRClient
 import com.aivoice.input.pipeline.*
 import com.aivoice.input.ui.floating.FloatingBallState
 import com.aivoice.input.ui.floating.FloatingBallView
+import com.aivoice.input.ui.floating.BeatIndicatorView
+import com.aivoice.input.ui.floating.BeatListBubbleView
+import com.aivoice.input.ui.floating.SuggestionBubbleView
+import com.aivoice.input.ai.SuggestionManager
 import android.util.Log
 import com.aivoice.input.util.VibrationHelper
 import kotlinx.coroutines.CoroutineScope
@@ -37,6 +42,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class FloatingBallService : LifecycleService() {
@@ -47,6 +53,16 @@ class FloatingBallService : LifecycleService() {
     private lateinit var floatingBallView: FloatingBallView
     private lateinit var params: WindowManager.LayoutParams
     private lateinit var pipeline: StreamingPipeline
+    private lateinit var miniMaxClient: MiniMaxClient
+
+    // 节拍相关
+    private var beatIndicator: BeatIndicatorView? = null
+    private var beatIndicatorParams: WindowManager.LayoutParams? = null
+    private lateinit var beatListBubble: BeatListBubbleView
+
+    // AI 建议相关
+    private lateinit var suggestionBubble: SuggestionBubbleView
+    private lateinit var suggestionManager: SuggestionManager
 
     private var initialX = 0
     private var initialY = 0
@@ -63,6 +79,9 @@ class FloatingBallService : LifecycleService() {
     private var recordingJob: Job? = null
     private var currentPolishedText = StringBuilder()
 
+    // Broadcast receiver for settings changes
+    private var settingsReceiver: android.content.BroadcastReceiver? = null
+
     // Beat context for WriterPad integration
     @Volatile
     private var beatContext: BeatContext? = null
@@ -74,6 +93,39 @@ class FloatingBallService : LifecycleService() {
     fun updateBeatContext(context: BeatContext?) {
         this.beatContext = context
         Log.d(TAG, "Beat context updated: ${context?.beatTitle}")
+
+        // 检查节拍器是否启用
+        if (!isBeatIndicatorEnabled()) {
+            hideBeatIndicator()
+            return
+        }
+
+        // 更新节拍指示器
+        if (context != null && context.beatList.isNotEmpty()) {
+            // 尝试恢复上次编辑的节拍
+            val prefs = getSharedPreferences("settings", MODE_PRIVATE)
+            val lastBeatId = prefs.getString("last_edited_beat_id", null)
+
+            if (lastBeatId != null) {
+                val lastIndex = context.beatList.indexOfFirst { it.beatId == lastBeatId }
+                if (lastIndex != -1) {
+                    // 恢复到上次编辑的节拍
+                    this.beatContext = context.copy(currentBeatIndex = lastIndex)
+                    showBeatIndicator(lastIndex + 1, context.beatList.size)
+                    return
+                }
+            }
+
+            // 如果没有上次记录，使用当前节拍
+            showBeatIndicator(context.currentBeatIndex + 1, context.beatList.size)
+        } else {
+            hideBeatIndicator()
+        }
+    }
+
+    private fun isBeatIndicatorEnabled(): Boolean {
+        val prefs = getSharedPreferences("settings", MODE_PRIVATE)
+        return prefs.getBoolean("beat_indicator_enabled", true)
     }
 
     /**
@@ -82,6 +134,54 @@ class FloatingBallService : LifecycleService() {
     fun clearBeatContext() {
         this.beatContext = null
         Log.d(TAG, "Beat context cleared")
+        hideBeatIndicator()
+    }
+
+    private fun showBeatIndicator(current: Int, total: Int) {
+        if (beatIndicator == null) {
+            createBeatIndicator()
+        }
+        beatIndicator?.updatePosition(current, total)
+        beatIndicator?.show()
+        updateBeatIndicatorPosition()
+    }
+
+    private fun hideBeatIndicator() {
+        beatIndicator?.hide()
+    }
+
+    private fun createBeatIndicator() {
+        beatIndicator = BeatIndicatorView(this)
+        beatIndicator?.onBeatClick = { advanceToNextBeat() }
+        beatIndicator?.onBeatLongClick = { showBeatListBubble() }
+
+        val displayMetrics = resources.displayMetrics
+        beatIndicatorParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams.TYPE_PHONE
+            },
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+        }
+
+        windowManager.addView(beatIndicator!!, beatIndicatorParams!!)
+    }
+
+    private fun updateBeatIndicatorPosition() {
+        if (beatIndicator != null && beatIndicatorParams != null) {
+            // 节拍按钮放在悬浮球左侧，间距 8dp
+            val offsetX = -resources.displayMetrics.density * (48 + 8)
+            beatIndicatorParams!!.x = params.x + offsetX.toInt()
+            beatIndicatorParams!!.y = params.y
+            windowManager.updateViewLayout(beatIndicator!!, beatIndicatorParams!!)
+        }
     }
 
     companion object {
@@ -90,6 +190,7 @@ class FloatingBallService : LifecycleService() {
         const val NOTIFICATION_ID = 1
         const val ACTION_SHOW = "com.aivoice.input.action.SHOW"
         const val ACTION_HIDE = "com.aivoice.input.action.HIDE"
+        const val ACTION_UPDATE_BEAT_INDICATOR = "com.aivoice.input.action.UPDATE_BEAT_INDICATOR"
         const val CLICK_THRESHOLD = 10
         const val LONG_PRESS_THRESHOLD = 200L
         const val DOUBLE_CLICK_THRESHOLD = 300L
@@ -128,12 +229,18 @@ class FloatingBallService : LifecycleService() {
         startForeground(NOTIFICATION_ID, createNotification())
         initPipeline()
         createFloatingBall()
+        loadBeatContextFromStorage()
+        registerBroadcastReceiver()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_HIDE -> hideFloatingBall()
             ACTION_SHOW -> showFloatingBall()
+            ACTION_UPDATE_BEAT_INDICATOR -> {
+                val enabled = intent.getBooleanExtra("enabled", true)
+                handleBeatIndicatorUpdate(enabled)
+            }
         }
         super.onStartCommand(intent, flags, startId)
         return START_STICKY
@@ -144,6 +251,7 @@ class FloatingBallService : LifecycleService() {
         longPressCheckJob?.cancel()
         recordingJob?.cancel()
         removeFloatingBall()
+        unregisterBroadcastReceiver()
         serviceScope.cancel()
     }
 
@@ -181,7 +289,7 @@ class FloatingBallService : LifecycleService() {
         val miniMaxKey = BuildConfig.MINIMAX_API_KEY
 
         val asrClient = TencentASRClient(secretId, secretKey, appId)
-        val miniMaxClient = MiniMaxClient(miniMaxKey)
+        miniMaxClient = MiniMaxClient(miniMaxKey)
         val audioRecorder = AudioRecorder()
         val promptEngine = PromptEngine()
         val postProcessor = PostProcessor()
@@ -226,6 +334,19 @@ class FloatingBallService : LifecycleService() {
             true
         }
         windowManager.addView(floatingBallView, params)
+
+        // 初始化节拍列表气泡
+        beatListBubble = BeatListBubbleView(this, windowManager)
+        beatListBubble.onBeatSelected = { beatId -> selectBeat(beatId) }
+        beatListBubble.onDismiss = { beatIndicator?.show() }
+
+        // 初始化建议气泡
+        suggestionBubble = SuggestionBubbleView(this, windowManager)
+        suggestionBubble.onSuggestionClick = { suggestion -> injectSuggestion(suggestion) }
+        suggestionBubble.onDismiss = { beatIndicator?.show() }
+
+        // 初始化建议管理器
+        suggestionManager = SuggestionManager(miniMaxClient, this)
     }
 
     private fun handleTouch(event: MotionEvent) {
@@ -260,6 +381,8 @@ class FloatingBallService : LifecycleService() {
                     params.x = initialX + dx.toInt()
                     params.y = initialY + dy.toInt()
                     windowManager.updateViewLayout(floatingBallView, params)
+                    // 同步更新节拍指示器位置
+                    updateBeatIndicatorPosition()
                 }
             }
             MotionEvent.ACTION_UP -> {
@@ -365,11 +488,15 @@ class FloatingBallService : LifecycleService() {
                     val style = getDefaultPolishStyle()
                     Log.d(TAG, "Stopping pipeline with style: $style, context: ${beatContext?.beatTitle}")
 
-                    // 重置注入器，准备接收 AI 润色结果
+                    // 重置注入器，准备接收基础润色结果
                     TextInjectService.getInstance()?.resetInjection()
 
+                    // 检查节拍器是否启用
+                    val useBeatContext = isBeatIndicatorEnabled() && beatContext != null
+
+                    // 第一步：基础润色（去语气词、词库替换、语句通顺）直接注入输入框
                     var firstChunk = true
-                    pipeline.stop(style, beatContext).collectLatest { chunk ->
+                    pipeline.stop(style, if (useBeatContext) beatContext else null).collectLatest { chunk ->
                         Log.d(TAG, "Received chunk: $chunk")
                         if (firstChunk) {
                             // 第一个 chunk 替换掉 ASR 文字
@@ -386,6 +513,22 @@ class FloatingBallService : LifecycleService() {
                     if (currentPolishedText.isNotEmpty()) {
                         Log.d(TAG, "Saving to history: ${currentPolishedText}")
                         saveToHistory(asrText, currentPolishedText.toString())
+                    }
+
+                    // 第二步：只有在节拍器启用时才生成AI建议
+                    if (useBeatContext && currentPolishedText.isNotEmpty()) {
+                        Log.d(TAG, "Generating suggestions for: ${currentPolishedText}")
+                        suggestionManager.generateSuggestions(currentPolishedText.toString(), beatContext)
+                            .collect { result ->
+                                result.getOrNull()?.let { suggestions ->
+                                    Log.d(TAG, "Got ${suggestions.size} suggestions")
+                                    if (suggestions.isNotEmpty()) {
+                                        showSuggestionBubble(suggestions)
+                                    }
+                                }
+                            }
+                    } else {
+                        Log.d(TAG, "Beat indicator disabled, skipping suggestions")
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Processing error: ${e.message}", e)
@@ -436,9 +579,176 @@ class FloatingBallService : LifecycleService() {
         if (::floatingBallView.isInitialized && floatingBallView.parent != null) {
             windowManager.removeView(floatingBallView)
         }
+        if (beatIndicator != null && beatIndicator?.parent != null) {
+            windowManager.removeView(beatIndicator!!)
+        }
     }
 
     fun setBallState(state: FloatingBallState) {
         floatingBallView.state = state
+    }
+
+    private fun advanceToNextBeat() {
+        val context = beatContext ?: return
+        val beats = context.beatList
+        if (beats.isEmpty()) return
+
+        val nextIndex = (context.currentBeatIndex + 1) % beats.size
+        selectBeat(beats[nextIndex].beatId)
+    }
+
+    private fun selectBeat(beatId: String) {
+        val context = beatContext ?: return
+        val beats = context.beatList
+        val index = beats.indexOfFirst { it.beatId == beatId }
+        if (index == -1) return
+
+        // 更新本地状态
+        beatContext = context.copy(currentBeatIndex = index)
+        beatIndicator?.updatePosition(index + 1, beats.size)
+
+        // 保存到 SharedPreferences
+        val prefs = getSharedPreferences("settings", MODE_PRIVATE)
+        prefs.edit().putString("last_edited_beat_id", beatId).apply()
+
+        // 通知用户
+        android.widget.Toast.makeText(this, "切换到：${beats[index].title}", android.widget.Toast.LENGTH_SHORT).show()
+    }
+
+    private fun showBeatListBubble() {
+        Log.d(TAG, "showBeatListBubble called, beatContext=$beatContext")
+        val context = beatContext
+        if (context == null) {
+            Log.d(TAG, "beatContext is null, returning")
+            return
+        }
+        if (context.beatList.isEmpty()) {
+            Log.d(TAG, "beatList is empty, returning")
+            return
+        }
+
+        Log.d(TAG, "Showing beat list bubble with ${context.beatList.size} beats")
+        val params = this.params
+        beatListBubble.show(context.beatList, context.currentBeatIndex, params.x, params.y)
+        beatIndicator?.hide()
+    }
+
+    private fun showSuggestionBubble(suggestions: List<String>) {
+        val params = this.params
+        suggestionBubble.show(suggestions, params.x, params.y)
+        beatIndicator?.hide()
+    }
+
+    private fun injectSuggestion(suggestion: String) {
+        TextInjectService.getInstance()?.injectTextStreaming(suggestion)
+    }
+
+    /**
+     * Load beat context from storage when service starts.
+     * This allows the beat indicator to show automatically if enabled.
+     */
+    private fun loadBeatContextFromStorage() {
+        if (!isBeatIndicatorEnabled()) {
+            return
+        }
+
+        serviceScope.launch {
+            try {
+                val db = AppDatabase.getInstance(this@FloatingBallService)
+                val prefs = getSharedPreferences("settings", MODE_PRIVATE)
+
+                // Get the most recent project
+                val projects = db.projectDao().getAll().first()
+                if (projects.isEmpty()) {
+                    Log.d(TAG, "No projects found, beat indicator will not show")
+                    return@launch
+                }
+
+                val project = projects.first()
+
+                // Get beats for this project
+                val beats = db.beatDao().getByProject(project.id).first()
+                if (beats.isEmpty()) {
+                    Log.d(TAG, "No beats found for project ${project.name}")
+                    return@launch
+                }
+
+                // Try to restore last edited beat
+                val lastBeatId = prefs.getString("last_edited_beat_id", null)
+                val currentIndex = if (lastBeatId != null) {
+                    beats.indexOfFirst { it.beatId == lastBeatId }.takeIf { it != -1 } ?: 0
+                } else {
+                    0
+                }
+
+                // Build beat context
+                val beatList = beats.map { beat ->
+                    BeatInfo(
+                        beatId = beat.beatId,
+                        title = beat.title,
+                        summary = beat.summary
+                    )
+                }
+
+                val currentBeat = beats[currentIndex]
+                val context = BeatContext(
+                    beatId = currentBeat.beatId,
+                    beatTitle = currentBeat.title,
+                    beatSummary = currentBeat.summary,
+                    beatList = beatList,
+                    currentBeatIndex = currentIndex,
+                    characters = emptyList(),
+                    worldRules = emptyList()
+                )
+
+                // Update beat context which will show the indicator
+                beatContext = context
+                showBeatIndicator(currentIndex + 1, beats.size)
+
+                Log.d(TAG, "Beat context loaded: ${currentBeat.title} (${currentIndex + 1}/${beats.size})")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to load beat context: ${e.message}", e)
+            }
+        }
+    }
+
+    private fun registerBroadcastReceiver() {
+        settingsReceiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == ACTION_UPDATE_BEAT_INDICATOR) {
+                    val enabled = intent.getBooleanExtra("enabled", true)
+                    handleBeatIndicatorUpdate(enabled)
+                }
+            }
+        }
+        val filter = android.content.IntentFilter(ACTION_UPDATE_BEAT_INDICATOR)
+        registerReceiver(settingsReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+    }
+
+    private fun unregisterBroadcastReceiver() {
+        settingsReceiver?.let {
+            unregisterReceiver(it)
+            settingsReceiver = null
+        }
+    }
+
+    private fun handleBeatIndicatorUpdate(enabled: Boolean) {
+        if (enabled) {
+            // Load and show beat indicator if we have context
+            if (beatContext != null) {
+                val context = beatContext!!
+                showBeatIndicator(context.currentBeatIndex + 1, context.beatList.size)
+            } else {
+                // Try to load from storage
+                loadBeatContextFromStorage()
+            }
+        } else {
+            // Hide beat indicator
+            hideBeatIndicator()
+            // Clear beat context to disable context-aware features
+            beatContext = null
+            // Clear glossary from dictionary replacer
+            pipeline.clearGlossary()
+        }
     }
 }

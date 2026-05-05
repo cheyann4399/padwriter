@@ -38,4 +38,10 @@ interface BeatDao {
 
     @Query("SELECT * FROM Beat WHERE `order` > (SELECT `order` FROM Beat WHERE beatId = :beatId) ORDER BY `order` ASC LIMIT 1")
     suspend fun getNextBeat(beatId: String): Beat?
+
+    @Query("UPDATE Beat SET title = :title, summary = :summary WHERE beatId = :beatId")
+    suspend fun updateTitleAndSummary(beatId: String, title: String, summary: String)
+
+    @Query("UPDATE Beat SET `order` = `order` + 1 WHERE projectId = :projectId AND `order` >= :position")
+    suspend fun shiftOrderAfterInsert(projectId: Long, position: Int)
 }

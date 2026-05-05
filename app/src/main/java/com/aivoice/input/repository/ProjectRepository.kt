@@ -27,4 +27,8 @@ class ProjectRepository(private val database: AppDatabase) {
             project.copy(updatedAt = System.currentTimeMillis())
         )
     }
+
+    suspend fun deleteProject(projectId: Long) {
+        database.projectDao().deleteById(projectId)
+    }
 }

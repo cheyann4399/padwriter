@@ -25,4 +25,7 @@ interface OutlineDao {
 
     @Query("SELECT * FROM Outline WHERE projectId = :projectId AND isActive = 1 ORDER BY updatedAt DESC")
     fun getByProject(projectId: Long): Flow<List<Outline>>
+
+    @Query("UPDATE Outline SET content = :content, updatedAt = :updatedAt WHERE beatId = :beatId AND isActive = 1")
+    suspend fun updateContentByBeat(beatId: String, content: String, updatedAt: Long)
 }

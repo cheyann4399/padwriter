@@ -1,39 +1,47 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="200dp"
-    android:layout_height="wrap_content"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="168dp"
+    android:orientation="vertical"
     android:background="@drawable/bg_bubble_card"
-    android:padding="8dp"
     android:elevation="8dp">
 
+    <!-- 顶部标题栏 -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical">
+        android:layout_height="40dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="12dp"
+        android:paddingEnd="8dp">
 
         <TextView
-            android:layout_width="wrap_content"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:text="选择节拍"
+            android:layout_weight="1"
+            android:text="节拍列表"
             android:textColor="#333333"
             android:textSize="14sp"
-            android:textStyle="bold"
-            android:paddingBottom="8dp" />
+            android:textStyle="bold" />
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/beat_list"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:maxHeight="250dp" />
+        <ImageButton
+            android:id="@+id/close_button"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@drawable/bg_ripple_borderless"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:tint="#999999"
+            android:scaleType="centerInside" />
 
     </LinearLayout>
 
-    <ImageButton
-        android:id="@+id/close_button"
-        android:layout_width="24dp"
-        android:layout_height="24dp"
-        android:layout_gravity="top|end"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:src="@android:drawable/ic_menu_close_clear_cancel" />
+    <!-- 竖向滚动列表 -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/beat_list"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:paddingHorizontal="12dp"
+        android:paddingBottom="8dp" />
 
-</FrameLayout>
+</LinearLayout>

@@ -55,4 +55,26 @@ class BeatRepository(private val database: AppDatabase) {
             }
         }
     }
+
+    suspend fun updateBeat(beatId: String, title: String, summary: String) {
+        database.beatDao().updateTitleAndSummary(beatId, title, summary)
+    }
+
+    suspend fun insertBeatAt(projectId: Long, position: Int, draft: com.aivoice.input.model.draft.BeatDraft) {
+        database.withTransaction {
+            // 先将后续节拍的 order 都加 1
+            database.beatDao().shiftOrderAfterInsert(projectId, position)
+            // 然后插入新节拍
+            val beat = Beat(
+                projectId = projectId,
+                beatId = UUID.randomUUID().toString().take(8),
+                title = draft.title,
+                summary = draft.summary,
+                type = draft.type,
+                order = position,
+                createdAt = System.currentTimeMillis()
+            )
+            database.beatDao().insert(beat)
+        }
+    }
 }

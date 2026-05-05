@@ -5,6 +5,7 @@ import android.widget.Button
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.aivoice.input.service.FloatingBallService
+import com.aivoice.input.ui.writer.WriterPadActivity
 import com.aivoice.input.util.PermissionHelper
 
 class MainActivity : AppCompatActivity() {
@@ -13,6 +14,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var audioButton: Button
     private lateinit var accessibilityButton: Button
     private lateinit var startButton: Button
+    private lateinit var writerPadButton: Button
+    private lateinit var settingsButton: Button
 
     companion object {
         private const val REQUEST_OVERLAY = 1001
@@ -38,6 +41,8 @@ class MainActivity : AppCompatActivity() {
         audioButton = findViewById(R.id.audio_button)
         accessibilityButton = findViewById(R.id.accessibility_button)
         startButton = findViewById(R.id.start_button)
+        writerPadButton = findViewById(R.id.writer_pad_button)
+        settingsButton = findViewById(R.id.settings_button)
     }
 
     private fun setupClickListeners() {
@@ -64,6 +69,14 @@ class MainActivity : AppCompatActivity() {
                 FloatingBallService.start(this)
                 Toast.makeText(this, R.string.floating_ball_started, Toast.LENGTH_SHORT).show()
             }
+        }
+
+        writerPadButton.setOnClickListener {
+            startActivity(android.content.Intent(this, WriterPadActivity::class.java))
+        }
+
+        settingsButton.setOnClickListener {
+            startActivity(android.content.Intent(this, com.aivoice.input.ui.settings.SettingsActivity::class.java))
         }
     }
 

@@ -6,7 +6,7 @@ import com.aivoice.input.model.enums.DraftAction
 data class WorldRuleDraft(
     val title: String,
     val content: String,
-    val action: DraftAction,
+    val action: DraftAction? = null,  // 可选，AI 可能不返回
     val contextType: ContextType,
     val contextNote: String,
     val targetId: String = ""

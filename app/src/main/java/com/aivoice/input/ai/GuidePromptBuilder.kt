@@ -17,6 +17,8 @@ class GuidePromptBuilder {
         return """
 你是一个网文创作顾问，擅长梳理故事脉络。请根据用户的故事前提生成节拍器骨架。
 
+重要：直接输出JSON结果，不要输出任何思考过程或解释。
+
 JSON Schema:
 {
   "beats": [
@@ -28,17 +30,13 @@ JSON Schema:
   ]
 }
 
-示例1:
+示例:
 输入: 一个少年在废墟中发现神秘石碑，从此踏上修仙之路
 输出: {"beats":[{"title":"废墟觉醒","summary":"少年李火旺在废墟中发现神秘石碑，获得传承","type":"OPENING"},{"title":"初入江湖","summary":"拜入青云宗，结识师兄张三","type":"DEVELOPMENT"},{"title":"宗门大比","summary":"在宗门比武中崭露头角","type":"CLIMAX"},{"title":"下山历练","summary":"奉命下山执行任务，遭遇魔教","type":"TWIST"}]}
 
-示例2:
-输入: 都市重生文，主角重生回到高考前，决定改变命运
-输出: {"beats":[{"title":"重生归来","summary":"主角重生回到高考前三个月","type":"OPENING"},{"title":"备战高考","summary":"利用前世记忆高效复习","type":"DEVELOPMENT"},{"title":"意外相遇","summary":"偶遇前世暗恋对象","type":"FORESHADOW"},{"title":"高考冲刺","summary":"高考前夕的关键抉择","type":"CLIMAX"}]}
-
 用户输入: $premise
 
-只输出JSON，不要其他文字。
+直接输出JSON，不要其他文字。
 """.trimIndent()
     }
 

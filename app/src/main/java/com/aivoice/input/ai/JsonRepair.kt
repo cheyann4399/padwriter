@@ -5,9 +5,12 @@ package com.aivoice.input.ai
  */
 object JsonRepair {
 
+    private val trailingCommaArrayRegex = Regex(""",\s*]""")
+    private val trailingCommaObjectRegex = Regex(""",\s*}""")
+
     /**
      * Attempt to repair malformed JSON.
-     * Handles: trailing commas, missing brackets, illegal escape sequences.
+     * Handles: trailing commas, missing brackets.
      *
      * @param json The potentially malformed JSON string
      * @return Repaired JSON string, or original if no repair needed
@@ -16,8 +19,8 @@ object JsonRepair {
         var result = json.trim()
 
         // 1. Remove trailing commas before ] and }
-        result = result.replace(Regex(",\\s*]"), "]")
-        result = result.replace(Regex(",\\s*}"), "}")
+        result = result.replace(trailingCommaArrayRegex, "]")
+        result = result.replace(trailingCommaObjectRegex, "}")
 
         // 2. Fix missing closing braces
         val openBraces = result.count { it == '{' }
@@ -32,14 +35,6 @@ object JsonRepair {
         if (openBrackets > closeBrackets) {
             result += "]".repeat(openBrackets - closeBrackets)
         }
-
-        // 4. Remove illegal escape sequences (keep only valid JSON escapes)
-        // Valid escapes: \", \\, \/, \b, \f, \n, \r, \t, \uXXXX
-        result = result.replace(Regex("\\\\(?!['\"\\\\/bfnrtu])"), "")
-
-        // 5. Fix unescaped quotes in string values (simple cases)
-        // This is tricky - only fix obvious cases like {"key": "value with "quote" inside"}
-        // Skip complex cases to avoid breaking valid JSON
 
         return result
     }

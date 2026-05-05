@@ -5,7 +5,9 @@ import android.graphics.PixelFormat
 import android.view.LayoutInflater
 import android.view.View
 import android.view.WindowManager
+import android.widget.Button
 import android.widget.ImageButton
+import android.widget.LinearLayout
 import android.widget.TextView
 import com.aivoice.input.R
 
@@ -20,9 +22,20 @@ class SuggestionBubbleView(
     private var view: View
     private var isShowing = false
 
-    private val suggestion1: TextView
-    private val suggestion2: TextView
-    private val suggestion3: TextView
+    private val suggestion1: LinearLayout
+    private val suggestion1Text: TextView
+    private val suggestion1Btn: Button
+    private val divider1: View
+
+    private val suggestion2: LinearLayout
+    private val suggestion2Text: TextView
+    private val suggestion2Btn: Button
+    private val divider2: View
+
+    private val suggestion3: LinearLayout
+    private val suggestion3Text: TextView
+    private val suggestion3Btn: Button
+
     private val closeButton: ImageButton
 
     var onSuggestionClick: ((suggestion: String) -> Unit)? = null
@@ -30,9 +43,21 @@ class SuggestionBubbleView(
 
     init {
         view = LayoutInflater.from(context).inflate(R.layout.view_suggestion_bubble, null)
+
         suggestion1 = view.findViewById(R.id.suggestion_1)
+        suggestion1Text = view.findViewById(R.id.suggestion_1_text)
+        suggestion1Btn = view.findViewById(R.id.suggestion_1_btn)
+        divider1 = view.findViewById(R.id.divider_1)
+
         suggestion2 = view.findViewById(R.id.suggestion_2)
+        suggestion2Text = view.findViewById(R.id.suggestion_2_text)
+        suggestion2Btn = view.findViewById(R.id.suggestion_2_btn)
+        divider2 = view.findViewById(R.id.divider_2)
+
         suggestion3 = view.findViewById(R.id.suggestion_3)
+        suggestion3Text = view.findViewById(R.id.suggestion_3_text)
+        suggestion3Btn = view.findViewById(R.id.suggestion_3_btn)
+
         closeButton = view.findViewById(R.id.close_button)
 
         closeButton.setOnClickListener { dismiss() }
@@ -44,13 +69,16 @@ class SuggestionBubbleView(
     fun show(suggestions: List<String>, anchorX: Int, anchorY: Int) {
         if (isShowing) return
 
-        setupSuggestionView(suggestion1, suggestions.getOrNull(0))
-        setupSuggestionView(suggestion2, suggestions.getOrNull(1))
-        setupSuggestionView(suggestion3, suggestions.getOrNull(2))
+        setupSuggestionView(suggestion1, suggestion1Text, suggestion1Btn, divider1, suggestions.getOrNull(0), true)
+        setupSuggestionView(suggestion2, suggestion2Text, suggestion2Btn, divider2, suggestions.getOrNull(1), false)
+        setupSuggestionView(suggestion3, suggestion3Text, suggestion3Btn, null, suggestions.getOrNull(2), false)
+
+        val displayMetrics = context.resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
 
         val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            screenWidth - 32,  // 固定宽度：屏幕宽度 - 左右边距
+            (168 * displayMetrics.density).toInt(),  // 固定高度：168dp
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             } else {
@@ -61,24 +89,34 @@ class SuggestionBubbleView(
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = android.view.Gravity.TOP or android.view.Gravity.START
-            x = anchorX - 140
-            y = anchorY - 300
+            x = 16  // 左边距 16px
+            y = anchorY - 200  // 显示在悬浮球上方
         }
 
         windowManager.addView(view, params)
         isShowing = true
     }
 
-    private fun setupSuggestionView(textView: TextView, suggestion: String?) {
+    private fun setupSuggestionView(
+        container: LinearLayout,
+        textView: TextView,
+        button: Button,
+        divider: View?,
+        suggestion: String?,
+        isFirst: Boolean
+    ) {
         if (suggestion != null) {
             textView.text = suggestion
-            textView.visibility = View.VISIBLE
-            textView.setOnClickListener {
+            container.visibility = View.VISIBLE
+            divider?.visibility = if (isFirst) View.GONE else View.VISIBLE
+
+            button.setOnClickListener {
                 onSuggestionClick?.invoke(suggestion)
                 dismiss()
             }
         } else {
-            textView.visibility = View.GONE
+            container.visibility = View.GONE
+            divider?.visibility = View.GONE
         }
     }
 

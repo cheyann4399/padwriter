@@ -6,6 +6,8 @@ import androidx.lifecycle.ViewModelProvider
 import com.aivoice.input.ai.AIGuideEngine
 import com.aivoice.input.ai.GuidePromptBuilder
 import com.aivoice.input.ai.GuideResponseParser
+import com.aivoice.input.ai.RouterAgent
+import com.aivoice.input.ai.ExecutorPromptBuilder
 import com.aivoice.input.network.ai.MiniMaxClient
 import com.aivoice.input.BuildConfig
 import com.aivoice.input.db.AppDatabase
@@ -16,6 +18,7 @@ import com.aivoice.input.repository.MappingRepository
 import com.aivoice.input.repository.OutlineRepository
 import com.aivoice.input.repository.ProjectRepository
 import com.aivoice.input.repository.WorldRuleRepository
+import com.aivoice.input.repository.GlossaryRepository
 import com.aivoice.input.ui.writer.mvi.WriterPadReducer
 
 /**
@@ -36,12 +39,14 @@ class WriterPadViewModelFactory(
             val worldRuleRepository = WorldRuleRepository(database)
             val outlineRepository = OutlineRepository(database)
             val mappingRepository = MappingRepository(database)
+            val glossaryRepository = GlossaryRepository(database)
             val beatContextService = BeatContextService(
                 database = database,
                 characterRepository = characterRepository,
                 worldRuleRepository = worldRuleRepository,
                 outlineRepository = outlineRepository,
-                mappingRepository = mappingRepository
+                mappingRepository = mappingRepository,
+                beatRepository = beatRepository
             )
             val aiGuideEngine = AIGuideEngineProvider.getEngine(context)
             val reducer = WriterPadReducer()
@@ -51,7 +56,8 @@ class WriterPadViewModelFactory(
                 beatRepository = beatRepository,
                 beatContextService = beatContextService,
                 aiGuideEngine = aiGuideEngine,
-                reducer = reducer
+                reducer = reducer,
+                glossaryRepository = glossaryRepository
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
@@ -76,6 +82,8 @@ object AIGuideEngineProvider {
         val client = MiniMaxClient(apiKey)
         val promptBuilder = GuidePromptBuilder()
         val parser = GuideResponseParser()
-        return AIGuideEngine(client, promptBuilder, parser)
+        val routerAgent = RouterAgent(client)
+        val executorPromptBuilder = ExecutorPromptBuilder()
+        return AIGuideEngine(client, promptBuilder, parser, routerAgent, executorPromptBuilder)
     }
 }
