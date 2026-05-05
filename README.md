@@ -1,12 +1,56 @@
-# PadWriter - AI 语音输入助手
+# PadWriter - AI 语音写作助手
 
-> 安卓全局悬浮球语音输入工具，复刻 Typeless 核心体验
+> 安卓全局悬浮球语音输入工具，专为校园创作者设计
 
-## 项目概述
+[![GitHub release](https://img.shields.io/github/v/release/cheyann4399/padwriter)](https://github.com/cheyann4399/padwriter/releases)
+[![Android](https://img.shields.io/badge/Android-8.0%2B-green)](https://developer.android.com)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**核心流程**：按住悬浮球 → 语音录制 → ASR 转文字 → AI 润色 → 自动输入到当前 App
+## 🎯 核心特性
 
-**技术栈**：Kotlin + MVVM + Room + Coroutines + AccessibilityService
+- **全局悬浮球**：在任意 App 中快速启动语音输入
+- **AI 智能润色**：三种风格（原汁原味/正式得体/简洁精炼）
+- **节拍器上下文控制**：解决 LLM 写作的"穿帮、剧透、变笨"问题
+- **WriterPad 写作模式**：管理人设、世界观、情节大纲
+- **智能词库**：AI 自动提取专有名词，语音输入自动纠错
+
+## 📥 快速开始
+
+### 下载 APK
+
+👉 **[点击下载 v1.0.0-beta](https://github.com/cheyann4399/padwriter/releases/download/v1.0.0-beta/PadWriter-v1.0.0-beta.apk)** (6.9MB)
+
+或访问 [Releases 页面](https://github.com/cheyann4399/padwriter/releases) 查看所有版本。
+
+### 系统要求
+
+- Android 8.0 (API 26) 或更高版本
+- 2GB RAM（推荐 4GB）
+
+### 安装步骤
+
+1. 下载 APK 文件
+2. 在设备上启用"允许安装未知来源应用"
+3. 安装 APK
+4. 授予必要权限（悬浮窗、麦克风、无障碍服务）
+5. 联系开发者获取测试 API Key
+
+## 🎬 产品演示
+
+### 核心功能截图
+
+[即将上传]
+
+### 演示视频
+
+[即将上传]
+
+## 📖 项目文档
+
+- **[项目说明文档](./项目说明文档.md)** - 完整的产品设计和技术方案（比赛提交文档）
+- **[项目验收标准](./项目验收标准.md)** - 验收标准和检查清单
+- [故障排查指南](./docs/TROUBLESHOOTING.md) - 常见问题解决方案
+- [WriterPad 进度](./docs/WRITERPAD_PROGRESS.md) - WriterPad 模块开发进度
 
 ## 开发进度
 
