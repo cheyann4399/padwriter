@@ -24,7 +24,7 @@ android {
         versionCode = 1
         versionName = "1.0"
 
-        // API Keys from local.properties
+        // API Keys - 从 local.properties 读取（不提交到 Git）
         buildConfigField("String", "XUNFEI_APP_ID", "\"${localProperties.getProperty("XUNFEI_APP_ID", "")}\"")
         buildConfigField("String", "XUNFEI_API_KEY", "\"${localProperties.getProperty("XUNFEI_API_KEY", "")}\"")
         buildConfigField("String", "XUNFEI_API_SECRET", "\"${localProperties.getProperty("XUNFEI_API_SECRET", "")}\"")
@@ -32,11 +32,13 @@ android {
         buildConfigField("String", "TENCENT_SECRET_ID", "\"${localProperties.getProperty("TENCENT_SECRET_ID", "")}\"")
         buildConfigField("String", "TENCENT_SECRET_KEY", "\"${localProperties.getProperty("TENCENT_SECRET_KEY", "")}\"")
         buildConfigField("String", "TENCENT_APP_ID", "\"${localProperties.getProperty("TENCENT_APP_ID", "")}\"")
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -53,6 +55,9 @@ android {
     buildFeatures {
         viewBinding = true
         buildConfig = true
+    }
+    ksp {
+        arg("room.schemaLocation", "$projectDir/schemas")
     }
 }
 
@@ -91,4 +96,7 @@ dependencies {
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
+    androidTestImplementation("androidx.room:room-testing:2.6.1")
+    androidTestImplementation("androidx.test:runner:1.5.2")
+    androidTestImplementation("androidx.test:rules:1.5.0")
 }
