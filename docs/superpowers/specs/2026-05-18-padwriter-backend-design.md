@@ -30,11 +30,11 @@
 ### 2.1 整体架构
 
 ```
-┌─────────────┐    POST /chat/stream    ┌─────────────┐    POST /messages    ┌─────────────┐
-│   Android   │ ─────────────────────► │   FastAPI   │ ──────────────────► │   MiniMax   │
-│   Client    │                         │   Proxy     │                      │    API      │
-│             │ ◄────────────────────── │             │ ◄────────────────── │             │
-└─────────────┘    SSE 流式响应          └─────────────┘    SSE 流式响应       └─────────────┘
+┌─────────────┐    POST /chat/stream    ┌─────────────┐    POST /chatcompletion_stream    ┌─────────────┐
+│   Android   │ ─────────────────────► │   FastAPI   │ ─────────────────────────────────► │   MiniMax   │
+│   Client    │                         │   Proxy     │                                     │    API      │
+│             │ ◄────────────────────── │             │ ◄───────────────────────────────── │             │
+└─────────────┘    SSE 流式响应          └─────────────┘    SSE 流式响应                      └─────────────┘
 ```
 
 ### 2.2 项目结构
@@ -45,7 +45,8 @@ padwriter-backend/
 ├── requirements.txt     # Python 依赖
 ├── Dockerfile           # Docker 构建文件
 ├── docker-compose.yaml  # Docker Compose 配置
-└── .env                 # 环境变量（API Key 等）
+├── .env                 # 环境变量（API Key 等）
+└── .gitignore           # Git 忽略配置（排除 .env）
 ```
 
 ---
@@ -91,38 +92,117 @@ data: [DONE]
 
 ---
 
-## 4. 配置设计
+## 4. MiniMax API 调用设计
 
-### 4.1 环境变量
+### 4.1 MiniMax 官方 API 地址
+
+```
+https://api.minimax.chat/v1/text/chatcompletion_stream
+```
+
+### 4.2 请求参数映射
+
+后端接收客户端请求后，需转换为 MiniMax 官方格式：
+
+**客户端请求**:
+```json
+{
+  "prompt": "用户输入内容",
+  "model": "MiniMax-M2.7"
+}
+```
+
+**转换为 MiniMax 请求**:
+```json
+{
+  "model": "MiniMax-M2.7",
+  "stream": true,
+  "messages": [
+    {
+      "role": "user",
+      "content": "用户输入内容"
+    }
+  ]
+}
+```
+
+### 4.3 MiniMax 请求头
+
+调用 MiniMax API 必须携带以下请求头：
+
+```
+Authorization: Bearer ${MINIMAX_API_KEY}
+Content-Type: application/json
+```
+
+### 4.4 SSE 响应转换
+
+MiniMax 原生 SSE 响应格式：
+```
+data: {"choices":[{"delta":{"content":"文本片段"}}]}
+```
+
+后端需解析并转换为客户端期望格式：
+```
+data: {"text": "文本片段"}
+```
+
+**转换逻辑**:
+1. 解析 MiniMax SSE 的 JSON 数据
+2. 提取 `choices[0].delta.content` 字段
+3. 封装为 `{"text": "提取的内容"}`
+4. 转发给客户端
+
+---
+
+## 5. 配置设计
+
+### 5.1 环境变量
 
 `.env` 文件配置：
 
 | 变量名 | 说明 | 默认值 |
 |--------|------|--------|
 | MINIMAX_API_KEY | MiniMax API 密钥 | 必填 |
-| MINIMAX_BASE_URL | MiniMax API 地址 | https://api.minimaxi.com/anthropic |
+| MINIMAX_BASE_URL | MiniMax API 地址 | https://api.minimax.chat/v1/text/chatcompletion_stream |
 | DEFAULT_MODEL | 默认模型 | MiniMax-M2.7 |
 | REQUEST_TIMEOUT | 请求超时时间（秒） | 60 |
 
-### 4.2 CORS 配置
+### 5.2 .env 安全说明
 
-FastAPI 添加 CORS 中间件，允许 Android 客户端跨域请求：
+**重要**: `.env` 文件包含 API 密钥，必须排除出 Git 版本控制。
+
+`.gitignore` 配置：
+```
+.env
+__pycache__/
+*.pyc
+```
+
+### 5.3 CORS 配置
+
+FastAPI 添加 CORS 中间件：
 
 ```python
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # 开发环境允许所有来源
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 ```
 
+**生产环境安全说明**:
+- `allow_origins=["*"]` 仅适用于开发环境
+- 生产环境应改为指定域名，如：`allow_origins=["https://your-app.com"]`
+- 或通过环境变量 `ALLOWED_ORIGINS` 配置
+
 ---
 
-## 5. 错误处理
+## 6. 错误处理
 
-### 5.1 错误码定义
+### 6.1 错误码定义
 
 | HTTP 状态码 | 错误类型 | 说明 |
 |------------|---------|------|
@@ -130,7 +210,7 @@ app.add_middleware(
 | 502 | AI 服务错误 | MiniMax API 返回错误 |
 | 504 | 请求超时 | MiniMax API 响应超时 |
 
-### 5.2 错误响应格式
+### 6.2 错误响应格式
 
 ```json
 {
@@ -138,11 +218,28 @@ app.add_middleware(
 }
 ```
 
+### 6.3 超时处理
+
+使用 httpx 设置超时并捕获异常：
+
+```python
+import httpx
+from httpx import TimeoutException
+
+timeout = httpx.Timeout(float(os.getenv("REQUEST_TIMEOUT", 60)))
+
+async with httpx.AsyncClient(timeout=timeout) as client:
+    try:
+        response = await client.post(url, headers=headers, json=payload)
+    except TimeoutException:
+        raise HTTPException(status_code=504, detail="Request timeout")
+```
+
 ---
 
-## 6. 日志设计
+## 7. 日志设计
 
-### 6.1 请求日志
+### 7.1 请求日志
 
 每次请求记录：
 - 请求时间
@@ -150,7 +247,7 @@ app.add_middleware(
 - prompt 长度
 - 响应状态
 
-### 6.2 错误日志
+### 7.2 错误日志
 
 错误发生时记录：
 - 错误时间
@@ -160,17 +257,23 @@ app.add_middleware(
 
 ---
 
-## 7. 部署设计
+## 8. 部署设计
 
-### 7.1 服务器信息
+### 8.1 服务器信息
 
 | 项目 | 值 |
 |------|-----|
 | 服务器 IP | 121.40.123.131 |
-| 端口 | 8002 |
+| 外部端口 | 8002 |
+| 内部端口 | 8000 |
 | 部署目录 | /opt/padwriter_backend/ |
 
-### 7.2 Dockerfile
+**端口说明**:
+- Docker 容器内部服务运行在 8000 端口
+- 通过 docker-compose 映射到外部 8002 端口
+- 客户端访问地址：`http://121.40.123.131:8002`
+
+### 8.2 Dockerfile
 
 ```dockerfile
 FROM python:3.11-slim
@@ -182,7 +285,7 @@ EXPOSE 8000
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
-### 7.3 docker-compose.yaml
+### 8.3 docker-compose.yaml
 
 ```yaml
 services:
@@ -197,9 +300,9 @@ services:
 
 ---
 
-## 8. 客户端修改
+## 9. 客户端修改
 
-### 8.1 MiniMaxClient 修改
+### 9.1 MiniMaxClient 修改
 
 修改 `MiniMaxConfig.kt`:
 
@@ -214,7 +317,7 @@ object MiniMaxConfig {
 - 移除 `apiKey` 构造参数
 - 移除 `Authorization` 请求头
 
-### 8.2 调用方修改
+### 9.2 调用方修改
 
 修改 `FloatingBallService.kt` 和 `WriterPadViewModelFactory.kt`:
 - 移除 `BuildConfig.MINIMAX_API_KEY` 传参
@@ -222,7 +325,7 @@ object MiniMaxConfig {
 
 ---
 
-## 9. 验收标准
+## 10. 验收标准
 
 - [ ] 后端服务启动成功，健康检查通过
 - [ ] Android 客户端能成功调用后端 API
@@ -230,3 +333,4 @@ object MiniMaxConfig {
 - [ ] 错误场景返回正确的错误码
 - [ ] 日志正常输出
 - [ ] API Key 不出现在客户端代码中
+- [ ] .env 文件未提交到 Git
