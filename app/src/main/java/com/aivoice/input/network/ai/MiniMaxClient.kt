@@ -17,9 +17,7 @@ import okhttp3.sse.EventSourceListener
 import okhttp3.sse.EventSources
 import java.util.concurrent.TimeUnit
 
-class MiniMaxClient(
-    private val apiKey: String
-) {
+class MiniMaxClient() {
     private val client = OkHttpClient.Builder()
         .readTimeout(60, TimeUnit.SECONDS)
         .build()
@@ -33,14 +31,13 @@ class MiniMaxClient(
 
     fun chatStream(prompt: String): Flow<String> = callbackFlow {
         val requestBody = buildRequestBody(prompt)
-        val url = "${MiniMaxConfig.BASE_URL}/v1/messages"
+        val url = "${MiniMaxConfig.BASE_URL}/chat/stream"
 
         Log.d(TAG, "Starting stream request to: $url")
         Log.d(TAG, "Prompt length: ${prompt.length}")
 
         val request = Request.Builder()
             .url(url)
-            .header("Authorization", "Bearer $apiKey")
             .header("Content-Type", "application/json")
             .header("Accept", "text/event-stream")
             .post(requestBody.toRequestBody(JSON_MEDIA_TYPE))
@@ -110,26 +107,15 @@ class MiniMaxClient(
         return try {
             val json = gson.fromJson(data, JsonObject::class.java)
 
-            // Try MiniMax/Anthropic content_block_delta format
-            val delta = json.getAsJsonObject("delta")
-            if (delta != null) {
-                // text_delta format
-                if (delta.has("text")) {
-                    return delta.get("text").asString
-                }
-                // thinking_delta format (skip thinking content)
-                if (delta.has("thinking")) {
-                    return null  // Skip thinking blocks, only return text
-                }
+            // 后端返回格式: {"text": "内容"}
+            if (json.has("text")) {
+                return json.get("text").asString
             }
 
-            // Try OpenAI format
-            val choices = json.getAsJsonArray("choices")
-            if (choices != null && choices.size() > 0) {
-                val deltaObj = choices[0].asJsonObject.getAsJsonObject("delta")
-                if (deltaObj != null && deltaObj.has("content")) {
-                    return deltaObj.get("content").asString
-                }
+            // 错误格式: {"error": "错误信息"}
+            if (json.has("error")) {
+                Log.e(TAG, "Stream error: ${json.get("error").asString}")
+                return null
             }
 
             null
