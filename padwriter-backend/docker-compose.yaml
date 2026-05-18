@@ -1,0 +1,8 @@
+services:
+  padwriter-backend:
+    build: .
+    ports:
+      - "8002:8000"
+    restart: unless-stopped
+    env_file:
+      - .env
