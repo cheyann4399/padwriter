@@ -286,10 +286,9 @@ class FloatingBallService : LifecycleService() {
         val secretId = BuildConfig.TENCENT_SECRET_ID
         val secretKey = BuildConfig.TENCENT_SECRET_KEY
         val appId = BuildConfig.TENCENT_APP_ID
-        val miniMaxKey = BuildConfig.MINIMAX_API_KEY
 
         val asrClient = TencentASRClient(secretId, secretKey, appId)
-        miniMaxClient = MiniMaxClient(miniMaxKey)
+        miniMaxClient = MiniMaxClient()
         val audioRecorder = AudioRecorder()
         val promptEngine = PromptEngine()
         val postProcessor = PostProcessor()
