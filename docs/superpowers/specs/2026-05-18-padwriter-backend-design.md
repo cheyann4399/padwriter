@@ -20,7 +20,7 @@
 
 - **语言**: Python 3.11
 - **框架**: FastAPI
-- **HTTP 客户端**: httpx（异步 + SSE 支持）
+- **HTTP 客户端**: httpx（异步 + 流式支持）
 - **部署**: Docker + 阿里云 ECS
 
 ---
@@ -30,11 +30,11 @@
 ### 2.1 整体架构
 
 ```
-┌─────────────┐    POST /chat/stream    ┌─────────────┐    POST /chatcompletion_stream    ┌─────────────┐
-│   Android   │ ─────────────────────► │   FastAPI   │ ─────────────────────────────────► │   MiniMax   │
-│   Client    │                         │   Proxy     │                                     │    API      │
-│             │ ◄────────────────────── │             │ ◄───────────────────────────────── │             │
-└─────────────┘    SSE 流式响应          └─────────────┘    SSE 流式响应                      └─────────────┘
+┌─────────────┐    POST /api/v1/chat/stream    ┌─────────────┐    POST /chatcompletion_stream    ┌─────────────┐
+│   Android   │ ─────────────────────────────► │   FastAPI   │ ─────────────────────────────────► │   MiniMax   │
+│   Client    │                                 │   Proxy     │                                     │    API      │
+│             │ ◄───────────────────────────── │             │ ◄───────────────────────────────── │             │
+└─────────────┘    SSE 流式响应                  └─────────────┘    SSE 流式响应                      └─────────────┘
 ```
 
 ### 2.2 项目结构
@@ -74,6 +74,8 @@ padwriter-backend/
 **响应**: SSE 流式
 
 ```
+Content-Type: text/event-stream
+
 data: {"text": "润色后的"}
 data: {"text": "文本内容"}
 data: [DONE]
@@ -89,6 +91,12 @@ data: [DONE]
   "status": "ok"
 }
 ```
+
+**说明**:
+- 仅检查本服务自身状态
+- 不依赖 MiniMax API 可用性
+- 不发起真实上游请求
+- 只检查服务进程、配置加载、基础连通性
 
 ---
 
@@ -135,7 +143,42 @@ Authorization: Bearer ${MINIMAX_API_KEY}
 Content-Type: application/json
 ```
 
-### 4.4 SSE 响应转换
+### 4.4 SSE 流式转发实现
+
+**核心要点**:
+- 使用 `client.stream(...)` 而非 `client.post(...)`
+- FastAPI 返回 `StreamingResponse`，设置 `Content-Type: text/event-stream`
+- 边收边转，不等待完整响应
+
+**实现示例**:
+
+```python
+from fastapi.responses import StreamingResponse
+import httpx
+
+async def stream_chat(prompt: str, model: str):
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        async with client.stream("POST", MINIMAX_BASE_URL, headers=headers, json=payload) as response:
+            async for line in response.aiter_lines():
+                if line.startswith("data:"):
+                    data = line[5:].strip()
+                    if data == "[DONE]":
+                        yield "data: [DONE]\n\n"
+                        break
+                    # 解析并转换格式
+                    text = extract_content(data)
+                    if text:
+                        yield f'data: {{"text": "{text}"}}\n\n'
+
+@app.post("/api/v1/chat/stream")
+async def chat_stream(request: ChatRequest):
+    return StreamingResponse(
+        stream_chat(request.prompt, request.model),
+        media_type="text/event-stream"
+    )
+```
+
+### 4.5 SSE 响应转换
 
 MiniMax 原生 SSE 响应格式：
 ```
@@ -153,6 +196,25 @@ data: {"text": "文本片段"}
 3. 封装为 `{"text": "提取的内容"}`
 4. 转发给客户端
 
+**兼容处理**:
+- 空 chunk：跳过，不转发
+- 结束标记 `[DONE]`：直接转发
+- 心跳包：跳过
+- `choices[0].delta.content` 为空或不存在：跳过
+- 上游结构变化或字段缺失：走兜底错误处理，记录日志但不中断流
+
+### 4.6 流式响应中的错误处理
+
+**场景**: SSE 流已开始，中途上游报错或断开
+
+**处理方式**:
+- 一旦流已开始，不能再返回 HTTP 错误码
+- 通过 SSE 的 error event 通知客户端：
+  ```
+  data: {"error": "上游服务异常"}
+  ```
+- 或直接结束流（客户端根据未收到 `[DONE]` 判断异常）
+
 ---
 
 ## 5. 配置设计
@@ -166,7 +228,9 @@ data: {"text": "文本片段"}
 | MINIMAX_API_KEY | MiniMax API 密钥 | 必填 |
 | MINIMAX_BASE_URL | MiniMax API 地址 | https://api.minimax.chat/v1/text/chatcompletion_stream |
 | DEFAULT_MODEL | 默认模型 | MiniMax-M2.7 |
-| REQUEST_TIMEOUT | 请求超时时间（秒） | 60 |
+| REQUEST_TIMEOUT | 单次上游请求最大等待时间（秒） | 60 |
+
+**说明**: `REQUEST_TIMEOUT` 是建立连接和等待首个响应的超时时间，不是整个 SSE 会话的总时长。
 
 ### 5.2 .env 安全说明
 
@@ -179,23 +243,23 @@ __pycache__/
 *.pyc
 ```
 
-### 5.3 CORS 配置
+### 5.3 CORS 配置（预留 Web 扩展）
 
-FastAPI 添加 CORS 中间件：
+**说明**: CORS 主要用于浏览器/Web 客户端，Android 原生客户端不依赖 CORS。当前项目仅支持 Android，以下配置为预留 Web 扩展使用。
 
 ```python
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 开发环境允许所有来源
+    allow_origins=["*"],  # 仅开发环境
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 ```
 
-**生产环境安全说明**:
-- `allow_origins=["*"]` 仅适用于开发环境
-- 生产环境应改为指定域名，如：`allow_origins=["https://your-app.com"]`
+**生产环境注意**:
+- `allow_origins=["*"]` + `allow_credentials=True` 组合在浏览器中会被拒绝
+- 生产环境应改为指定域名：`allow_origins=["https://your-app.com"]`
 - 或通过环境变量 `ALLOWED_ORIGINS` 配置
 
 ---
@@ -207,8 +271,8 @@ app.add_middleware(
 | HTTP 状态码 | 错误类型 | 说明 |
 |------------|---------|------|
 | 400 | 参数错误 | prompt 为空或格式错误 |
-| 502 | AI 服务错误 | MiniMax API 返回错误 |
-| 504 | 请求超时 | MiniMax API 响应超时 |
+| 502 | AI 服务错误 | MiniMax API 返回错误（流开始前） |
+| 504 | 请求超时 | 连接 MiniMax API 超时 |
 
 ### 6.2 错误响应格式
 
@@ -230,7 +294,9 @@ timeout = httpx.Timeout(float(os.getenv("REQUEST_TIMEOUT", 60)))
 
 async with httpx.AsyncClient(timeout=timeout) as client:
     try:
-        response = await client.post(url, headers=headers, json=payload)
+        async with client.stream("POST", url, headers=headers, json=payload) as response:
+            # 流式处理
+            pass
     except TimeoutException:
         raise HTTPException(status_code=504, detail="Request timeout")
 ```
@@ -244,7 +310,7 @@ async with httpx.AsyncClient(timeout=timeout) as client:
 每次请求记录：
 - 请求时间
 - 客户端 IP
-- prompt 长度
+- prompt 长度（不记录完整 prompt）
 - 响应状态
 
 ### 7.2 错误日志
@@ -252,8 +318,15 @@ async with httpx.AsyncClient(timeout=timeout) as client:
 错误发生时记录：
 - 错误时间
 - 错误类型
-- 错误详情
-- MiniMax API 响应（如有）
+- 错误详情（不记录完整上游响应体）
+
+### 7.3 隐私保护
+
+**禁止记录**:
+- 完整 prompt（用户输入内容）
+- 完整上游响应体
+
+**原因**: 服务处理用户文本，全量落盘会带来隐私风险。
 
 ---
 
@@ -329,8 +402,9 @@ object MiniMaxConfig {
 
 - [ ] 后端服务启动成功，健康检查通过
 - [ ] Android 客户端能成功调用后端 API
-- [ ] SSE 流式响应正常返回
+- [ ] SSE 流式响应正常返回（边收边转）
 - [ ] 错误场景返回正确的错误码
-- [ ] 日志正常输出
+- [ ] 流式中断时客户端能正确处理
+- [ ] 日志正常输出，不记录敏感内容
 - [ ] API Key 不出现在客户端代码中
 - [ ] .env 文件未提交到 Git
