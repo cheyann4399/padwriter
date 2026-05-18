@@ -45,12 +45,24 @@ class TextInjectService : AccessibilityService() {
     }
 
     // 替换文字（用于 AI 润色后替换）
-    fun replaceText(text: String) {
+    suspend fun replaceText(text: String) {
         val rootNode = rootInActiveWindow
         textInjector.replaceText(text, rootNode)
     }
 
     fun resetInjection() {
-        textInjector.reset()
+        val rootNode = rootInActiveWindow
+        textInjector.reset()                 // 先清空旧状态
+        textInjector.setBaseline(rootNode)   // 再锁定当前焦点节点
+    }
+
+    // 重置以准备接收 AI 润色文字（清空 currentText 但保留 baseline 和 targetNode）
+    fun resetForPolish() {
+        textInjector.resetForPolish()
+    }
+
+    // 清除目标节点缓存（在润色完成后调用）
+    fun clearTargetNode() {
+        textInjector.clearTargetNode()
     }
 }

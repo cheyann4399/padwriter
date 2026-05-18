@@ -7,6 +7,10 @@ import com.aivoice.input.model.router.RouterDecision
 import com.aivoice.input.model.router.SkillType
 import com.aivoice.input.model.router.SkillAction
 import com.aivoice.input.network.ai.MiniMaxClient
+import com.google.gson.Gson
+import com.google.gson.JsonSyntaxException
+import com.google.gson.annotations.SerializedName
+import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.catch
@@ -21,6 +25,7 @@ class RouterAgent(
 ) {
     companion object {
         private const val TAG = "RouterAgent"
+        private val gson = Gson()
     }
 
     private var accumulatedJson = ""
@@ -166,88 +171,59 @@ $currentBeatInfo
     }
 
     private fun parseDecisionFromJson(json: String): RouterDecision {
-        // 简单的 JSON 解析（不使用 Gson）
-        val analysis = extractString(json, "analysis") ?: "分析用户输入"
-        val needsMoreInfo = extractBoolean(json, "needsMoreInfo")
-        val question = extractString(json, "question") ?: ""
-
-        val actionsArray = extractArray(json, "actions")
-        val actions = if (actionsArray.isNotEmpty()) {
-            actionsArray.map { actionJson ->
-                val typeStr = extractString(actionJson, "type") ?: "OUTLINE_UPDATE"
-                val type = try {
-                    SkillType.valueOf(typeStr)
-                } catch (e: Exception) {
-                    SkillType.OUTLINE_UPDATE
-                }
-                SkillAction(
-                    type = type,
-                    reason = extractString(actionJson, "reason") ?: "",
-                    targetBeatIds = extractStringArray(actionJson, "targetBeatIds"),
-                    priority = extractInt(actionJson, "priority") ?: 0
-                )
-            }.sortedBy { it.priority }
-        } else {
-            // 默认操作：更新大纲
-            listOf(SkillAction(SkillType.OUTLINE_UPDATE, "默认操作"))
+        return try {
+            val dto = gson.fromJson(json, RouterDecisionDto::class.java)
+            dto.toRouterDecision()
+        } catch (e: JsonSyntaxException) {
+            Log.e(TAG, "Gson parse failed, attempting repair: ${e.message}")
+            // Fallback: try with repaired JSON
+            val repaired = JsonRepair.repair(json)
+            val dto = gson.fromJson(repaired, RouterDecisionDto::class.java)
+            dto.toRouterDecision()
         }
-
-        return RouterDecision(actions, analysis, needsMoreInfo, question)
     }
 
-    private fun extractString(json: String, key: String): String? {
-        val pattern = """"$key"\s*:\s*"(.*?)"""".toRegex()
-        val match = pattern.find(json)
-        return match?.groupValues?.get(1)?.replace("\\n", "\n")
-    }
-
-    private fun extractBoolean(json: String, key: String): Boolean {
-        val pattern = """"$key"\s*:\s*(true|false)""".toRegex()
-        val match = pattern.find(json)
-        return match?.groupValues?.get(1) == "true"
-    }
-
-    private fun extractInt(json: String, key: String): Int? {
-        val pattern = """"$key"\s*:\s*(\d+)""".toRegex()
-        val match = pattern.find(json)
-        return match?.groupValues?.get(1)?.toIntOrNull()
-    }
-
-    private fun extractArray(json: String, key: String): List<String> {
-        val pattern = """"$key"\s*:\s*\[(.*?)\]""".toRegex(RegexOption.DOT_MATCHES_ALL)
-        val match = pattern.find(json)
-        if (match == null) return emptyList()
-
-        val arrayContent = match.groupValues[1]
-        // 分割数组元素（简单处理，假设每个元素是 {...}）
-        val elements = mutableListOf<String>()
-        var depth = 0
-        var start = -1
-        for (i in arrayContent.indices) {
-            val c = arrayContent[i]
-            if (c == '{') {
-                if (depth == 0) start = i
-                depth++
-            } else if (c == '}') {
-                depth--
-                if (depth == 0 && start >= 0) {
-                    elements.add(arrayContent.substring(start, i + 1))
-                    start = -1
-                }
+    // Gson DTO classes for deserialization
+    private data class RouterDecisionDto(
+        val analysis: String? = null,
+        val actions: List<ActionDto>? = null,
+        val needsMoreInfo: Boolean = false,
+        val question: String? = null
+    ) {
+        fun toRouterDecision(): RouterDecision {
+            val actions = if (!actions.isNullOrEmpty()) {
+                actions.map { it.toSkillAction() }.sortedBy { it.priority }
+            } else {
+                listOf(SkillAction(SkillType.OUTLINE_UPDATE, "默认操作"))
             }
+            return RouterDecision(
+                actions = actions,
+                analysis = analysis ?: "分析用户输入",
+                needsMoreInfo = needsMoreInfo,
+                question = question ?: ""
+            )
         }
-        return elements
     }
 
-    private fun extractStringArray(json: String, key: String): List<String> {
-        val pattern = """"$key"\s*:\s*\[(.*?)\]""".toRegex()
-        val match = pattern.find(json)
-        if (match == null) return emptyList()
-
-        val arrayContent = match.groupValues[1]
-        return arrayContent.split(",")
-            .map { it.trim().replace("\"", "") }
-            .filter { it.isNotEmpty() }
+    private data class ActionDto(
+        val type: String? = null,
+        val reason: String? = null,
+        val targetBeatIds: List<String>? = null,
+        val priority: Int = 0
+    ) {
+        fun toSkillAction(): SkillAction {
+            val skillType = try {
+                SkillType.valueOf(type ?: "OUTLINE_UPDATE")
+            } catch (e: Exception) {
+                SkillType.OUTLINE_UPDATE
+            }
+            return SkillAction(
+                type = skillType,
+                reason = reason ?: "",
+                targetBeatIds = targetBeatIds ?: emptyList(),
+                priority = priority
+            )
+        }
     }
 }
 

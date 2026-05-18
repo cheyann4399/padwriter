@@ -431,8 +431,12 @@ class FloatingBallService : LifecycleService() {
         VibrationHelper.vibrate(this, 50)
         currentPolishedText.clear()
 
-        // 重置文字注入器
-        TextInjectService.getInstance()?.resetInjection()
+        // 关键：先锁定当前有焦点的输入框，再清空状态（但不清空 targetNode）
+        val textInjectService = TextInjectService.getInstance()
+        if (textInjectService != null) {
+            // 先设置 baseline 锁定目标节点
+            textInjectService.resetInjection()
+        }
 
         val style = getDefaultPolishStyle()
         Log.d(TAG, "Starting pipeline with style: $style")
@@ -442,15 +446,9 @@ class FloatingBallService : LifecycleService() {
                     Log.d(TAG, "Pipeline state: $state")
                     when (state) {
                         is PipelineState.ASRResult -> {
-                            // 实时显示 ASR 识别的文字（替换模式）
+                            // ASR 实时更新（使用 updateText 保留基线内容）
                             Log.d(TAG, "ASR result: ${state.text}")
                             TextInjectService.getInstance()?.updateText(state.text)
-                        }
-                        is PipelineState.AIChunk -> {
-                            // AI 润色结果（流式追加）
-                            Log.d(TAG, "AI chunk: ${state.text}")
-                            TextInjectService.getInstance()?.injectTextStreaming(state.text)
-                            currentPolishedText.append(state.text)
                         }
                         is PipelineState.Error -> {
                             Log.e(TAG, "Pipeline error: ${state.message}")
@@ -459,6 +457,10 @@ class FloatingBallService : LifecycleService() {
                         is PipelineState.Completed -> {
                             Log.d(TAG, "Pipeline completed")
                             floatingBallView.state = FloatingBallState.NORMAL
+                        }
+                        else -> {
+                            // AIChunk 不应该在 start 阶段出现
+                            Log.w(TAG, "Unexpected state: $state")
                         }
                     }
                 }
@@ -486,26 +488,19 @@ class FloatingBallService : LifecycleService() {
             serviceScope.launch {
                 try {
                     val style = getDefaultPolishStyle()
-                    Log.d(TAG, "Stopping pipeline with style: $style, context: ${beatContext?.beatTitle}")
+                    Log.d(TAG, "Stopping pipeline with style: $style")
 
-                    // 重置注入器，准备接收基础润色结果
-                    TextInjectService.getInstance()?.resetInjection()
+                    // 准备接收 AI 润色：清空 ASR 累积的文字，但保留 baseline
+                    TextInjectService.getInstance()?.resetForPolish()
 
-                    // 检查节拍器是否启用
-                    val useBeatContext = isBeatIndicatorEnabled() && beatContext != null
-
-                    // 第一步：基础润色（去语气词、词库替换、语句通顺）直接注入输入框
-                    var firstChunk = true
-                    pipeline.stop(style, if (useBeatContext) beatContext else null).collectLatest { chunk ->
-                        Log.d(TAG, "Received chunk: $chunk")
-                        if (firstChunk) {
-                            // 第一个 chunk 替换掉 ASR 文字
-                            TextInjectService.getInstance()?.replaceText(chunk)
-                            firstChunk = false
-                        } else {
-                            // 后续 chunk 追加
-                            TextInjectService.getInstance()?.injectTextStreaming(chunk)
-                        }
+                    // AI 润色流式输入
+                    // 只有在节拍器启用时才传入 beatContext，否则传入 null 使用普通润色
+                    val useContextForPolish = isBeatIndicatorEnabled() && beatContext != null
+                    val contextForPolish = if (useContextForPolish) beatContext else null
+                    Log.d(TAG, "Polish with context: ${contextForPolish?.beatTitle ?: "无上下文"}")
+                    pipeline.stop(style, contextForPolish).collect { chunk ->
+                        Log.d(TAG, "Received AI chunk: $chunk")
+                        TextInjectService.getInstance()?.injectTextStreaming(chunk)
                         currentPolishedText.append(chunk)
                     }
 
@@ -516,8 +511,9 @@ class FloatingBallService : LifecycleService() {
                     }
 
                     // 第二步：只有在节拍器启用时才生成AI建议
+                    val useBeatContext = isBeatIndicatorEnabled() && beatContext != null
                     if (useBeatContext && currentPolishedText.isNotEmpty()) {
-                        Log.d(TAG, "Generating suggestions for: ${currentPolishedText}")
+                        Log.d(TAG, "Generating suggestions with beat context: ${beatContext?.beatTitle}")
                         suggestionManager.generateSuggestions(currentPolishedText.toString(), beatContext)
                             .collect { result ->
                                 result.getOrNull()?.let { suggestions ->
@@ -528,13 +524,14 @@ class FloatingBallService : LifecycleService() {
                                 }
                             }
                     } else {
-                        Log.d(TAG, "Beat indicator disabled, skipping suggestions")
+                        Log.d(TAG, "Beat indicator disabled, skipping AI suggestions")
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Processing error: ${e.message}", e)
                 } finally {
                     floatingBallView.state = FloatingBallState.NORMAL
-                    TextInjectService.getInstance()?.resetInjection()
+                    // 清除目标节点缓存，让用户可以自由编辑
+                    TextInjectService.getInstance()?.clearTargetNode()
                 }
             }
         }

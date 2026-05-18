@@ -48,6 +48,8 @@ class MiniMaxClient(
 
         val eventSourceFactory = EventSources.createFactory(client)
 
+        var currentEventSource: EventSource? = null
+
         val listener = object : EventSourceListener() {
             override fun onEvent(
                 eventSource: EventSource,
@@ -70,6 +72,7 @@ class MiniMaxClient(
 
             override fun onClosed(eventSource: EventSource) {
                 Log.d(TAG, "Stream closed normally")
+                currentEventSource = null
                 close()
             }
 
@@ -78,14 +81,16 @@ class MiniMaxClient(
                 response?.body?.string()?.let { body ->
                     Log.e(TAG, "Error body: $body")
                 }
+                currentEventSource = null
                 close(t ?: Exception("Unknown error"))
             }
         }
 
-        eventSourceFactory.newEventSource(request, listener)
+        currentEventSource = eventSourceFactory.newEventSource(request, listener)
 
         awaitClose {
-            // Cleanup if needed
+            currentEventSource?.cancel()
+            currentEventSource = null
         }
     }.flowOn(Dispatchers.IO)
 
