@@ -78,8 +78,7 @@ object AIGuideEngineProvider {
     }
 
     private fun createEngine(context: Context): AIGuideEngine {
-        val apiKey = BuildConfig.MINIMAX_API_KEY
-        val client = MiniMaxClient(apiKey)
+        val client = MiniMaxClient()
         val promptBuilder = GuidePromptBuilder()
         val parser = GuideResponseParser()
         val routerAgent = RouterAgent(client)
