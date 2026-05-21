@@ -14,9 +14,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # 配置
-MINIMAX_API_KEY = os.getenv("MINIMAX_API_KEY")
-MINIMAX_BASE_URL = os.getenv("MINIMAX_BASE_URL", "https://api.minimax.chat/v1/text/chatcompletion_stream")
-DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "MiniMax-M2.7")
+XFYUN_API_KEY = os.getenv("XFYUN_API_KEY")
+XFYUN_BASE_URL = os.getenv("XFYUN_BASE_URL", "https://maas-coding-api.cn-huabei-1.xf-yun.com/v2/chat/completions")
+DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "astron-code-latest")
 REQUEST_TIMEOUT = float(os.getenv("REQUEST_TIMEOUT", "60"))
 
 # 日志配置
@@ -56,9 +56,11 @@ class ErrorResponse(BaseModel):
 
 
 def extract_content(data: str) -> Optional[str]:
-    """从 MiniMax SSE 数据中提取文本内容"""
+    """从讯飞星火 SSE 数据中提取文本内容（OpenAI 兼容格式）"""
     try:
         obj = json.loads(data)
+
+        # OpenAI 兼容格式: choices[0].delta.content
         choices = obj.get("choices", [])
         if not choices:
             return None
@@ -71,9 +73,9 @@ def extract_content(data: str) -> Optional[str]:
 
 
 async def stream_chat(prompt: str, model: str):
-    """流式转发 MiniMax API 响应"""
+    """流式转发讯飞星火 API 响应"""
     headers = {
-        "Authorization": f"Bearer {MINIMAX_API_KEY}",
+        "Authorization": f"Bearer {XFYUN_API_KEY}",
         "Content-Type": "application/json",
     }
 
@@ -89,10 +91,10 @@ async def stream_chat(prompt: str, model: str):
 
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
-            async with client.stream("POST", MINIMAX_BASE_URL, headers=headers, json=payload) as response:
+            async with client.stream("POST", XFYUN_BASE_URL, headers=headers, json=payload) as response:
                 if response.status_code != 200:
                     error_body = await response.aread()
-                    logger.error(f"MiniMax API error: {response.status_code} - {error_body[:200]}")
+                    logger.error(f"Xunfei API error: {response.status_code} - {error_body[:200]}")
                     yield f'data: {{"error": "AI service error"}}\n\n'
                     return
 
@@ -113,7 +115,7 @@ async def stream_chat(prompt: str, model: str):
                         yield f'data: {{"text": "{escaped_text}"}}\n\n'
 
     except httpx.TimeoutException:
-        logger.error("MiniMax API timeout")
+        logger.error("Xunfei API timeout")
         yield f'data: {{"error": "Request timeout"}}\n\n'
     except Exception as e:
         logger.error(f"Stream error: {type(e).__name__}: {str(e)}")
@@ -129,7 +131,7 @@ async def health_check():
 @app.post("/api/v1/chat/stream")
 async def chat_stream(request: ChatRequest):
     """流式聊天接口"""
-    if not MINIMAX_API_KEY:
+    if not XFYUN_API_KEY:
         raise HTTPException(status_code=502, detail="API key not configured")
 
     model = request.model or DEFAULT_MODEL
@@ -146,11 +148,11 @@ async def chat_stream(request: ChatRequest):
 @app.on_event("startup")
 async def startup_event():
     """启动时检查配置"""
-    if not MINIMAX_API_KEY:
-        logger.warning("MINIMAX_API_KEY is not set!")
+    if not XFYUN_API_KEY:
+        logger.warning("XFYUN_API_KEY is not set!")
     else:
-        logger.info("MINIMAX_API_KEY is configured")
+        logger.info("XFYUN_API_KEY is configured")
 
-    logger.info(f"MINIMAX_BASE_URL: {MINIMAX_BASE_URL}")
+    logger.info(f"XFYUN_BASE_URL: {XFYUN_BASE_URL}")
     logger.info(f"DEFAULT_MODEL: {DEFAULT_MODEL}")
     logger.info(f"REQUEST_TIMEOUT: {REQUEST_TIMEOUT}s")
