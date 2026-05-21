@@ -10,6 +10,8 @@
 2. [AI 节拍生成问题](#ai-节拍生成问题)
 3. [UI 状态问题](#ui-状态问题)
 4. [数据持久化问题](#数据持久化问题)
+5. [网络与后端问题](#网络与后端问题)
+6. [构建问题](#构建问题)
 
 ---
 
@@ -223,6 +225,111 @@ adb shell am start -n com.aivoice.input/.MainActivity
 
 ---
 
+## 网络与后端问题
+
+### 问题：AI 润色无结果，SSE 连接失败
+
+**现象：** 按住悬浮球说话后，ASR 正常返回文字，松开后球短暂显示 PROCESSING 状态，但没有 AI 润色结果输出。logcat 显示：
+
+```
+MiniMaxClient: Stream failure: CLEARTEXT communication to 121.40.123.131 not permitted by network security policy, response: null null
+FloatingBallService: Processing error: CLEARTEXT communication to 121.40.123.131 not permitted by network security policy
+```
+
+**根本原因：** Android 9 (API 28) 及以上版本默认禁止 HTTP 明文通信，只允许 HTTPS。MiniMaxClient 使用 `http://121.40.123.131:8002` 连接后端代理，被 Android 网络安全策略拦截。
+
+**解决方案：** 添加网络安全配置，允许对后端服务器使用明文 HTTP。
+
+1. 创建 `app/src/main/res/xml/network_security_config.xml`：
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">121.40.123.131</domain>
+    </domain-config>
+</network-security-config>
+```
+
+2. 在 `AndroidManifest.xml` 的 `<application>` 中添加：
+
+```xml
+android:networkSecurityConfig="@xml/network_security_config"
+```
+
+**注意事项：**
+- 仅对特定 IP 开放明文通信，不要使用 `android:usesCleartextTraffic="true"` 全局开放
+- 生产环境应使用 HTTPS + 域名，移除此配置
+- 如果后端 IP 变更，需同步更新 `network_security_config.xml`
+
+### 问题：后端服务 503 不可用
+
+**现象：** `curl http://121.40.123.131:8002/health` 返回 503 或无响应
+
+**根本原因：** Docker 容器未运行或部署目录不存在
+
+**解决方案：**
+
+```bash
+# SSH 登录服务器
+ssh root@121.40.123.131
+
+# 检查容器状态
+docker ps | grep padwriter
+
+# 如果目录不存在，需要先部署
+cd /opt/padwriter_backend
+docker compose up -d --build
+
+# 验证
+curl http://localhost:8002/health
+```
+
+如果 `/opt/padwriter_backend` 目录不存在，需要从本地上传后端代码：
+
+```python
+# 使用 paramiko 上传
+import paramiko, os
+ssh = paramiko.SSHClient()
+ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+ssh.connect('121.40.123.131', username='root', password='cheyann111!')
+ssh.exec_command('mkdir -p /opt/padwriter_backend')
+sftp = ssh.open_sftp()
+for f in ['main.py', 'requirements.txt', 'Dockerfile', 'docker-compose.yaml', '.env']:
+    sftp.put(f'padwriter-backend/{f}', f'/opt/padwriter_backend/{f}')
+sftp.close()
+ssh.exec_command('cd /opt/padwriter_backend && docker compose up -d --build')
+```
+
+---
+
+## 构建问题
+
+### 问题：KSP 增量编译缓存损坏
+
+**现象：** 构建失败，报错：
+
+```
+e: [ksp] java.io.IOException: java.lang.ArrayIndexOutOfBoundsException: Array index out of range: 0
+    at org.jetbrains.kotlin.com.intellij.util.io.CompressedAppendableFile.loadChunk
+```
+
+**根本原因：** KSP (Kotlin Symbol Processing) 的增量编译缓存文件损坏，通常发生在切换分支或清理不完整后。
+
+**解决方案：** 清理构建缓存后重新编译：
+
+```bash
+# 方法一：clean 后重新构建
+./gradlew.bat clean assembleDebug
+
+# 方法二：手动删除缓存目录（更彻底）
+rm -rf app/build .gradle
+./gradlew.bat assembleDebug
+```
+
+---
+
 ## 更新记录
 
+- 2026-05-21: 添加网络与后端问题（HTTP 明文通信被拦截、后端 503）、构建问题（KSP 缓存损坏）
 - 2026-05-04: 初始版本，记录真机调试、AI 生成、UI 状态、数据持久化问题
