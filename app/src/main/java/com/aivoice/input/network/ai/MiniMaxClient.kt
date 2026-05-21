@@ -93,12 +93,8 @@ class MiniMaxClient() {
 
     private fun buildRequestBody(prompt: String): String {
         val json = JsonObject().apply {
+            addProperty("prompt", prompt)
             addProperty("model", MiniMaxConfig.MODEL)
-            addProperty("max_tokens", 8192)
-            addProperty("stream", true)
-            add("messages", gson.toJsonTree(listOf(
-                mapOf("role" to "user", "content" to prompt)
-            )))
         }
         return gson.toJson(json)
     }
