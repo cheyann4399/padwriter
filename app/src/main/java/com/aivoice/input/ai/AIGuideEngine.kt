@@ -7,9 +7,6 @@ import com.aivoice.input.model.Outline
 import com.aivoice.input.model.draft.BeatDraft
 import com.aivoice.input.model.draft.ClassificationResult
 import com.aivoice.input.model.draft.GlossaryDraft
-import com.aivoice.input.model.router.RouterDecision
-import com.aivoice.input.ai.RouterContext
-import com.aivoice.input.ai.ExecutorContext
 import com.aivoice.input.model.router.ExecutionResult
 import com.aivoice.input.network.ai.MiniMaxClient
 import kotlinx.coroutines.flow.Flow
@@ -25,9 +22,7 @@ import android.util.Log
 class AIGuideEngine(
     private val client: MiniMaxClient,
     private val promptBuilder: GuidePromptBuilder,
-    private val parser: GuideResponseParser,
-    private val routerAgent: RouterAgent,
-    private val executorPromptBuilder: ExecutorPromptBuilder
+    private val parser: GuideResponseParser
 ) {
     companion object {
         private const val TAG = "AIGuideEngine"
@@ -50,10 +45,6 @@ class AIGuideEngine(
     ): Flow<GuideEvent<ExecutionResult>> {
         Log.d(TAG, "processInput: input='${input.take(100)}'")
 
-        // Step 1: 路由决策
-        val routerContext = RouterContext(beats, characters, worldRules, currentBeat)
-
-        // 简化流程：直接构建执行 prompt，不再分两步调用
         val executorContext = ExecutorContext(beats, characters, worldRules, outlines, currentBeat)
         val prompt = buildUnifiedPrompt(input, executorContext)
 
@@ -108,7 +99,7 @@ class AIGuideEngine(
         } ?: "当前无选中节拍"
 
         return """
-你是一个网文创作助手。分析用户输入，执行相应操作。
+你是一个网文创作助手。分析用户输入，执行相应操作，输出JSON。
 
 当前上下文:
 $beatListInfo
@@ -123,18 +114,20 @@ $currentBeatInfo
 
 用户输入: $input
 
-请分析并执行操作，输出JSON格式:
+## 输出 Schema
+
+严格输出以下 JSON 结构，未涉及的字段设为 null 或空数组：
 
 {
   "beats": {
     "action": "CREATE|UPDATE|INSERT|DELETE|null",
-    "beats": [{"title": "标题", "summary": "摘要", "type": "OPENING|DEVELOPMENT|TWIST|CLOSING|FORESHADOW|CLIMAX"}],
-    "targetBeatId": "目标节拍ID",
-    "position": 0
+    "beats": [{"title": "2-6字标题", "summary": "20-50字摘要", "type": "OPENING|DEVELOPMENT|TWIST|CLOSING|FORESHADOW|CLIMAX"}],
+    "targetBeatId": "",
+    "position": -1
   },
   "characters": {
     "created": [{"name": "角色名", "content": "完整描述", "contextType": "STATE|RELATION|EVENT|CONDITION", "contextNote": "备注"}],
-    "updated": [{"targetId": "charId", "content": "更新内容"}],
+    "updated": [{"targetId": "已有charId", "content": "补充内容"}],
     "deleted": []
   },
   "worldRules": {
@@ -148,54 +141,90 @@ $currentBeatInfo
     "action": "CREATE|UPDATE|APPEND",
     "appendPosition": "START|END"
   },
-  "mappings": [
-    {"beatId": "beat_1", "settingType": "CHARACTER", "settingId": "NEW_CHAR_角色名", "contextType": "STATE", "contextNote": "该角色在此节拍出场"},
-    {"beatId": "beat_2", "settingType": "WORLD_RULE", "settingId": "NEW_RULE_规则标题", "contextType": "STATE", "contextNote": "该设定在此节拍被提及"}
-  ],
-  "glossary": [
-    {"word": "专有名词", "type": "CHARACTER|WORLD|MANUAL", "sourceId": "关联的charId或ruleId", "priority": "HIGH|MEDIUM|LOW", "aliases": ["别名1", "别名2"]}
-  ],
+  "mappings": [{"beatId": "beat_1", "settingType": "CHARACTER|WORLD_RULE", "settingId": "设定ID", "contextType": "STATE", "contextNote": "出场/被提及"}],
+  "glossary": [{"word": "专有名词", "type": "CHARACTER|WORLD|MANUAL", "sourceId": "关联ID", "priority": "HIGH|MEDIUM|LOW", "aliases": []}],
   "conflicts": [],
-  "feedback": "给用户的简短反馈"
+  "feedback": "一句话反馈"
 }
 
-判断规则:
-1. 【重要】如果当前无节拍，用户输入故事前提，必须同时执行：
-   - 生成节拍列表 (beats.action = "CREATE")，每个节拍要有清晰的标题和摘要
-   - 提取所有角色并创建人设 (characters.created)，包括主角、配角等
-   - 提取世界观设定 (worldRules.created)，包括时代背景、特殊规则等
-   - 为第一个节拍创建大纲 (outline)
-   - 提取词库 (glossary)，包括所有人名、地名、专有名词
-   - 【重要】mappings 必须精确关联：根据每个节拍的情节内容，只关联在该节拍中出场或被提及的人设/世界观
-2. 如果用户提到新角色名且不在当前人设列表，创建人设 (characters.created)
-3. 如果用户提到已有角色名并补充信息，更新人设 (characters.updated)
-4. 如果用户描述具体情节、场景，更新大纲 (outline)
-5. 【重要】mappings 关联规则：
-   - 不要使用 beatId = "ALL"
-   - 每个节拍只关联在该节拍情节中出场或被提及的人设/世界观
-   - 使用节拍序号作为 beatId，如 "beat_1", "beat_2" 等
-   - 例如：第一节拍只有主角出场，就只关联主角；第二节拍主角和反派都出场，就关联这两个
-6. 用户未提及的内容不要生成，对应字段设为 null 或空
-7. feedback 用一句话告诉用户做了什么
+## 判断规则
 
-词库提取规则（必须执行）：
-1. 提取所有人名（主角、配角、龙套），type 设为 CHARACTER
-2. 提取所有地名（城市、区域、建筑），type 设为 WORLD
-3. 提取专有名词（功法、道具、组织、职位、特殊术语），type 设为 MANUAL
-4. 每个词库条目必须关联 sourceId（人设ID或世界观ID）
-5. priority 规则：
-   - HIGH：主角、核心设定
-   - MEDIUM：重要配角、常用地名
-   - LOW：次要角色、偶尔出现的名词
-6. aliases 包含：外号、简称、尊称、蔑称等别名
+1. 当前无节拍 + 用户输入故事前提 → 必须同时：生成节拍、提取人设、提取世界观、为第一节拍创建大纲、提取词库、生成 mappings
+2. 新角色名不在当前人设列表 → characters.created
+3. 已有角色名 + 补充信息 → characters.updated
+4. 具体情节/场景 → outline 更新
+5. 用户未提及的内容 → 对应字段设 null 或空数组
 
-示例输出：
+## mappings 规则（严格遵守）
+
+- 禁止使用 beatId = "ALL"，必须枚举具体 beatId
+- 每个节拍只关联在该节拍情节中出场或被提及的人设/世界观
+- 新创建的人设 settingId 格式: "NEW_CHAR_角色名"
+- 新创建的世界观 settingId 格式: "NEW_RULE_规则标题"
+
+## 词库提取规则
+
+- 人名 → type: CHARACTER，priority: HIGH(主角)/MEDIUM(重要配角)/LOW(龙套)
+- 地名/组织 → type: WORLD
+- 功法/道具/术语 → type: MANUAL
+- 每条必须关联 sourceId
+- aliases 包含外号、简称、尊称等
+
+## 完整示例
+
+输入: 少年林墨在废墟中发现一块刻满符文的黑色石碑，触碰后获得远古传承，踏上修仙之路
+上下文: 当前无节拍
+
+输出:
+```json
 {
+  "beats": {
+    "action": "CREATE",
+    "beats": [
+      {"title": "废墟觉醒", "summary": "少年林墨在废墟中发现黑色石碑，触碰后获得远古传承", "type": "OPENING"},
+      {"title": "初入宗门", "summary": "林墨拜入修仙宗门，开始系统修炼", "type": "DEVELOPMENT"},
+      {"title": "宗门大比", "summary": "林墨在宗门比武中崭露头角，引起关注", "type": "CLIMAX"},
+      {"title": "下山历练", "summary": "林墨奉命下山执行任务，遭遇危机", "type": "TWIST"}
+    ],
+    "targetBeatId": "",
+    "position": -1
+  },
+  "characters": {
+    "created": [
+      {"name": "林墨", "content": "主角，少年，性格坚韧，在废墟中获得远古传承踏上修仙路", "contextType": "STATE", "contextNote": "主角初始状态"}
+    ],
+    "updated": [],
+    "deleted": []
+  },
+  "worldRules": {
+    "created": [
+      {"title": "远古传承", "content": "黑色石碑中的远古传承，赋予修炼者特殊能力", "contextType": "STATE", "contextNote": "核心设定"}
+    ],
+    "updated": [],
+    "deleted": []
+  },
+  "outline": {
+    "beatId": "beat_1",
+    "content": "少年林墨在废墟中探索，发现一块刻满符文的黑色石碑。触碰石碑后，远古传承涌入体内，林墨获得修炼功法，身体发生异变，踏上修仙之路。",
+    "action": "CREATE",
+    "appendPosition": "END"
+  },
+  "mappings": [
+    {"beatId": "beat_1", "settingType": "CHARACTER", "settingId": "NEW_CHAR_林墨", "contextType": "STATE", "contextNote": "主角出场"},
+    {"beatId": "beat_1", "settingType": "WORLD_RULE", "settingId": "NEW_RULE_远古传承", "contextType": "STATE", "contextNote": "传承被激活"},
+    {"beatId": "beat_2", "settingType": "CHARACTER", "settingId": "NEW_CHAR_林墨", "contextType": "STATE", "contextNote": "主角拜入宗门"},
+    {"beatId": "beat_3", "settingType": "CHARACTER", "settingId": "NEW_CHAR_林墨", "contextType": "EVENT", "contextNote": "主角参加大比"},
+    {"beatId": "beat_4", "settingType": "CHARACTER", "settingId": "NEW_CHAR_林墨", "contextType": "EVENT", "contextNote": "主角下山历练"}
+  ],
   "glossary": [
     {"word": "林墨", "type": "CHARACTER", "sourceId": "NEW_CHAR_林墨", "priority": "HIGH", "aliases": ["林少", "墨儿"]},
-    {"word": "青云宗", "type": "WORLD", "sourceId": "NEW_RULE_青云宗", "priority": "MEDIUM", "aliases": ["宗门"]}
-  ]
+    {"word": "远古传承", "type": "MANUAL", "sourceId": "NEW_RULE_远古传承", "priority": "HIGH", "aliases": ["传承"]},
+    {"word": "黑色石碑", "type": "MANUAL", "sourceId": "NEW_RULE_远古传承", "priority": "MEDIUM", "aliases": ["石碑"]}
+  ],
+  "conflicts": [],
+  "feedback": "已生成4个节拍、1个人设、1个世界观设定、词库3条"
 }
+```
 
 只输出JSON，不要其他文字。
 """.trimIndent()
@@ -352,4 +381,12 @@ $currentBeatInfo
 
         return openBraces == closeBraces && openBrackets == closeBrackets
     }
+
+    private data class ExecutorContext(
+        val beats: List<Beat> = emptyList(),
+        val characters: List<Character> = emptyList(),
+        val worldRules: List<WorldRule> = emptyList(),
+        val outlines: List<Outline> = emptyList(),
+        val currentBeat: Beat? = null
+    )
 }
