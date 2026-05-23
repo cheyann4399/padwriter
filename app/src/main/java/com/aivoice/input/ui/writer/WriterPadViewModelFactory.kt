@@ -6,8 +6,6 @@ import androidx.lifecycle.ViewModelProvider
 import com.aivoice.input.ai.AIGuideEngine
 import com.aivoice.input.ai.GuidePromptBuilder
 import com.aivoice.input.ai.GuideResponseParser
-import com.aivoice.input.ai.RouterAgent
-import com.aivoice.input.ai.ExecutorPromptBuilder
 import com.aivoice.input.network.ai.MiniMaxClient
 import com.aivoice.input.BuildConfig
 import com.aivoice.input.db.AppDatabase
@@ -81,8 +79,6 @@ object AIGuideEngineProvider {
         val client = MiniMaxClient()
         val promptBuilder = GuidePromptBuilder()
         val parser = GuideResponseParser()
-        val routerAgent = RouterAgent(client)
-        val executorPromptBuilder = ExecutorPromptBuilder()
-        return AIGuideEngine(client, promptBuilder, parser, routerAgent, executorPromptBuilder)
+        return AIGuideEngine(client, promptBuilder, parser)
     }
 }
