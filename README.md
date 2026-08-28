@@ -73,20 +73,6 @@ PadWriter 和 `novel-manager` 是同一套「节拍器创作方法论」的两�
 | RECORD_AUDIO | 麦克风 | 首次按住悬浮球 |
 | BIND_ACCESSIBILITY_SERVICE | 无障碍服务 | 设置页引导 |
 
-## 配置
-
-在 `local.properties` 中配置 API 密钥：
-
-```properties
-# 腾讯云实时语音识别
-TENCENT_SECRET_ID=your_secret_id
-TENCENT_SECRET_KEY=your_secret_key
-TENCENT_APP_ID=your_app_id
-
-# MiniMax AI
-MINIMAX_API_KEY=your_api_key
-```
-
 ## 构建
 
 ```bash
